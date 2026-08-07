@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: qiaomes-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: qiaomes
+      POSTGRES_PASSWORD: qiaomes_dev
+      POSTGRES_DB: qiaomes
+      TZ: Asia/Shanghai
+    ports:
+      - "5432:5432"
+    volumes:
+      - qiaomes_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qiaomes -d qiaomes"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  qiaomes_pgdata:

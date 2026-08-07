@@ -1,0 +1,30 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+src/**/bin/
+src/**/obj/
+
+# 前端
+node_modules/
+frontend/dist/
+frontend/node_modules/
+frontend/package-lock.json
+
+# 日志
+*.log
+api_stdout.log
+api_stderr.log
+vite_stdout.log
+vite_stderr.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# 环境变量
+.env
+.env.local

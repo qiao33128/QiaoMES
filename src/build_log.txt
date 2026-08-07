@@ -1,0 +1,19 @@
+  正在确定要还原的项目…
+  所有项目均是最新的，无法还原。
+  QiaoMES.Shared -> E:\ASomething\QiaoMES\src\BuildingBlocks\Shared\bin\Debug\net10.0\QiaoMES.Shared.dll
+  QiaoMES.Identity.Domain -> E:\ASomething\QiaoMES\src\Modules\Identity\Domain\bin\Debug\net10.0\QiaoMES.Identity.Domain.dll
+  QiaoMES.Infrastructure -> E:\ASomething\QiaoMES\src\BuildingBlocks\Infrastructure\QiaoMES.Infrastructure\bin\Debug\net10.0\QiaoMES.Infrastructure.dll
+  QiaoMES.Production.Domain -> E:\ASomething\QiaoMES\src\Modules\Production\Domain\bin\Debug\net10.0\QiaoMES.Production.Domain.dll
+  QiaoMES.Production.Application -> E:\ASomething\QiaoMES\src\Modules\Production\Application\bin\Debug\net10.0\QiaoMES.Production.Application.dll
+  QiaoMES.Identity.Application -> E:\ASomething\QiaoMES\src\Modules\Identity\Application\bin\Debug\net10.0\QiaoMES.Identity.Application.dll
+  QiaoMES.Identity.Infrastructure -> E:\ASomething\QiaoMES\src\Modules\Identity\Infrastructure\bin\Debug\net10.0\QiaoMES.Identity.Infrastructure.dll
+  QiaoMES.Production.Infrastructure -> E:\ASomething\QiaoMES\src\Modules\Production\Infrastructure\bin\Debug\net10.0\QiaoMES.Production.Infrastructure.dll
+  QiaoMES.Identity.Api -> E:\ASomething\QiaoMES\src\Modules\Identity\Api\bin\Debug\net10.0\QiaoMES.Identity.Api.dll
+  QiaoMES.Production.Api -> E:\ASomething\QiaoMES\src\Modules\Production\Api\bin\Debug\net10.0\QiaoMES.Production.Api.dll
+  QiaoMES.Api -> E:\ASomething\QiaoMES\src\QiaoMES.Api\bin\Debug\net10.0\QiaoMES.Api.dll
+
+已成功生成。
+    0 个警告
+    0 个错误
+
+已用时间 00:00:02.34

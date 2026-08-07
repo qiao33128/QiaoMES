@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Application\QiaoMES.Identity.Application.csproj" />
+    <ProjectReference Include="..\Domain\QiaoMES.Identity.Domain.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\Infrastructure\QiaoMES.Infrastructure\QiaoMES.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\Shared\QiaoMES.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.0.1" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

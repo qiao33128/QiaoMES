@@ -1,0 +1,37 @@
+<Solution>
+  <Folder Name="/BuildingBlocks/" />
+  <Folder Name="/BuildingBlocks/Infrastructure/">
+    <Project Path="BuildingBlocks/Infrastructure/QiaoMES.Infrastructure/QiaoMES.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/BuildingBlocks/Shared/">
+    <Project Path="BuildingBlocks/Shared/QiaoMES.Shared.csproj" />
+  </Folder>
+  <Folder Name="/Modules/" />
+  <Folder Name="/Modules/Identity/" />
+  <Folder Name="/Modules/Identity/Api/">
+    <Project Path="Modules/Identity/Api/QiaoMES.Identity.Api.csproj" />
+  </Folder>
+  <Folder Name="/Modules/Identity/Application/">
+    <Project Path="Modules/Identity/Application/QiaoMES.Identity.Application.csproj" />
+  </Folder>
+  <Folder Name="/Modules/Identity/Domain/">
+    <Project Path="Modules/Identity/Domain/QiaoMES.Identity.Domain.csproj" />
+  </Folder>
+  <Folder Name="/Modules/Identity/Infrastructure/">
+    <Project Path="Modules/Identity/Infrastructure/QiaoMES.Identity.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/Modules/Production/" />
+  <Folder Name="/Modules/Production/Api/">
+    <Project Path="Modules/Production/Api/QiaoMES.Production.Api.csproj" />
+  </Folder>
+  <Folder Name="/Modules/Production/Application/">
+    <Project Path="Modules/Production/Application/QiaoMES.Production.Application.csproj" />
+  </Folder>
+  <Folder Name="/Modules/Production/Domain/">
+    <Project Path="Modules/Production/Domain/QiaoMES.Production.Domain.csproj" />
+  </Folder>
+  <Folder Name="/Modules/Production/Infrastructure/">
+    <Project Path="Modules/Production/Infrastructure/QiaoMES.Production.Infrastructure.csproj" />
+  </Folder>
+  <Project Path="QiaoMES.Api/QiaoMES.Api.csproj" />
+</Solution>
