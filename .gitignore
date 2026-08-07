@@ -20,6 +20,9 @@ api_stdout.log
 api_stderr.log
 vite_stdout.log
 vite_stderr.log
+docker-build.log
+docker-build-api.log
+docker-up.log
 
 # IDE
 .idea/

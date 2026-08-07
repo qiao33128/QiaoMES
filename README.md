@@ -36,7 +36,38 @@ QiaoMES/
 └── frontend/                   # Vue 3 前端
 ```
 
-## 快速开始
+## 快速开始（Docker 一键部署，推荐）
+
+整个系统（PostgreSQL + 后端 + 前端）通过 Docker Compose 一条命令启动：
+
+```bash
+docker compose up -d --build
+```
+
+部署完成后访问：
+
+- **前端页面**：`http://localhost:8080`（Nginx 托管前端并反代 API）
+- 默认管理员账号：`admin` / `Admin123!`
+
+停止系统：
+
+```bash
+docker compose down
+```
+
+数据保存在 Docker 卷 `qiaomes_pgdata` 中，`docker compose down` 不会删除数据。
+
+### 生产环境配置
+
+生产配置通过环境变量注入（见 `docker-compose.yml`），关键项包括：
+
+- `ConnectionStrings__IdentityDb` / `ConnectionStrings__ProductionDb`：数据库连接
+- `Jwt__SecretKey`：JWT 密钥（**生产环境务必修改**）
+- `Cors__Origins`：前端访问地址
+
+---
+
+## 本地开发
 
 ### 1. 启动数据库（PostgreSQL）
 
