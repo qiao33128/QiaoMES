@@ -15,6 +15,7 @@ frontend/package-lock.json
 
 # 日志
 *.log
+build_log.txt
 api_stdout.log
 api_stderr.log
 vite_stdout.log
