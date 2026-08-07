@@ -21,7 +21,9 @@ http.interceptors.response.use(
   (response) => response.data,
   (error) => {
     const status = error.response?.status
-    const message = error.response?.data?.message
+    const data = error.response?.data || {}
+    // 兼容多种后端错误字段：message / description / detail / Error.Description
+    const message = data.message || data.description || data.detail || data.Error?.Description
     if (status === 401) {
       localStorage.removeItem('access_token')
       localStorage.removeItem('user')

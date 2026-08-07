@@ -62,7 +62,7 @@
         </el-table-column>
         <el-table-column label="操作" width="260" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" type="primary" plain @click="openReportDialog(row)">报工</el-button>
+            <el-button size="small" type="primary" plain :disabled="row.status !== 2" @click="openReportDialog(row)">报工</el-button>
             <el-button size="small" type="success" plain :disabled="row.status !== 0" @click="handleRelease(row)">下达</el-button>
             <el-button size="small" type="warning" plain :disabled="row.status !== 1" @click="handleStart(row)">开始</el-button>
             <el-dropdown trigger="click" @command="(cmd) => handleMore(cmd, row)">
