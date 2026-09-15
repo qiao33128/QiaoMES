@@ -12,6 +12,10 @@ public class MasterDataDbContext(DbContextOptions<MasterDataDbContext> options) 
     public DbSet<Material> Materials => Set<Material>();
     public DbSet<WorkCenter> WorkCenters => Set<WorkCenter>();
     public DbSet<Operation> Operations => Set<Operation>();
+    public DbSet<Bom> Boms => Set<Bom>();
+    public DbSet<BomItem> BomItems => Set<BomItem>();
+    public DbSet<Routing> Routings => Set<Routing>();
+    public DbSet<RoutingStep> RoutingSteps => Set<RoutingStep>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -34,6 +38,49 @@ public class MasterDataDbContext(DbContextOptions<MasterDataDbContext> options) 
         var operation = modelBuilder.Entity<Operation>();
         operation.Property(o => o.StandardSeconds).IsRequired();
         operation.Property(o => o.IsKeyOperation).IsRequired();
+
+        // ---------- BOM ----------
+        var bom = modelBuilder.Entity<Bom>();
+        bom.ToTable("boms");
+        bom.HasKey(b => b.Id);
+        bom.Property(b => b.Version).HasMaxLength(50).IsRequired();
+        bom.Property(b => b.Remark).HasMaxLength(500);
+        // 同一产品下版本唯一
+        bom.HasIndex(b => new { b.ProductId, b.Version }).IsUnique();
+        bom.HasQueryFilter(b => !b.IsDeleted);
+        bom.HasMany(b => b.Items)
+            .WithOne()
+            .HasForeignKey(i => i.BomId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        var bomItem = modelBuilder.Entity<BomItem>();
+        bomItem.ToTable("bom_items");
+        bomItem.HasKey(i => i.Id);
+        bomItem.Property(i => i.Unit).HasMaxLength(20);
+        bomItem.Property(i => i.Remark).HasMaxLength(500);
+        bomItem.Property(i => i.Quantity).HasPrecision(18, 6);
+        bomItem.Property(i => i.LossRate).HasPrecision(9, 6);
+        bomItem.HasIndex(i => i.BomId);
+        bomItem.HasIndex(i => i.MaterialId);
+
+        // ---------- 工艺路线 ----------
+        var routing = modelBuilder.Entity<Routing>();
+        routing.ToTable("routings");
+        routing.HasKey(r => r.Id);
+        routing.Property(r => r.Version).HasMaxLength(50).IsRequired();
+        routing.Property(r => r.Remark).HasMaxLength(500);
+        routing.HasIndex(r => new { r.ProductId, r.Version }).IsUnique();
+        routing.HasQueryFilter(r => !r.IsDeleted);
+        routing.HasMany(r => r.Steps)
+            .WithOne()
+            .HasForeignKey(s => s.RoutingId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        var routingStep = modelBuilder.Entity<RoutingStep>();
+        routingStep.ToTable("routing_steps");
+        routingStep.HasKey(s => s.Id);
+        routingStep.HasIndex(s => s.RoutingId);
+        routingStep.HasIndex(s => new { s.RoutingId, s.Sequence });
 
         base.OnModelCreating(modelBuilder);
     }

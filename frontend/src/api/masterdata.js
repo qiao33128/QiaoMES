@@ -17,6 +17,22 @@ export const materialApi = createCatalogApi('materials')
 export const operationApi = createCatalogApi('operations')
 export const workCenterApi = createCatalogApi('work-centers')
 
+/** BOM 与工艺路线是「版本化」资源：启用用 activate，删除用 remove，没有简单的启停。 */
+function createVersionedApi(resource) {
+  const base = `/master-data/${resource}`
+  return {
+    list: (params) => http.get(base, { params }),
+    getById: (id) => http.get(`${base}/${id}`),
+    create: (data) => http.post(base, data),
+    update: (id, data) => http.put(`${base}/${id}`, data),
+    activate: (id) => http.post(`${base}/${id}/activate`),
+    remove: (id) => http.delete(`${base}/${id}`),
+  }
+}
+
+export const bomApi = createVersionedApi('boms')
+export const routingApi = createVersionedApi('routings')
+
 export const MaterialTypeMap = { 0: '原材料', 1: '半成品', 2: '成品', 3: '辅料' }
 
 export const WorkCenterTypeMap = { 0: '产线', 1: '单元', 2: '工位', 3: '设备' }

@@ -54,10 +54,27 @@
             <span v-else>{{ formatCell(row[col.prop]) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="150" fixed="right">
+        <el-table-column
+          label="操作"
+          :width="config.statusAction === 'activate' ? 230 : 150"
+          fixed="right"
+        >
           <template #default="{ row }">
             <el-button size="small" plain @click="openForm(row)">编辑</el-button>
+            <template v-if="config.statusAction === 'activate'">
+              <el-button
+                size="small"
+                type="success"
+                plain
+                :disabled="row.isActive"
+                @click="activateRow(row)"
+              >
+                设为生效
+              </el-button>
+              <el-button size="small" type="danger" plain @click="removeRow(row)">删除</el-button>
+            </template>
             <el-button
+              v-else
               size="small"
               :type="row.isActive ? 'danger' : 'success'"
               plain
@@ -81,7 +98,7 @@
       />
     </el-card>
 
-    <el-dialog v-model="form.visible" :title="dialogTitle" width="520px">
+    <el-dialog v-if="!config.formComponent" v-model="form.visible" :title="dialogTitle" width="520px">
       <el-form :model="form.data" label-width="110px">
         <el-form-item
           v-for="field in visibleFormFields"
@@ -130,6 +147,14 @@
         <el-button type="primary" :loading="saving" @click="submitForm">保存</el-button>
       </template>
     </el-dialog>
+
+    <!-- BOM / 工艺路线使用专用表单（含明细行编辑） -->
+    <BomFormDialog v-model="bomDialog.visible" :bom-id="bomDialog.id" @saved="loadData" />
+    <RoutingFormDialog
+      v-model="routingDialog.visible"
+      :routing-id="routingDialog.id"
+      @saved="loadData"
+    />
   </div>
 </template>
 
@@ -139,6 +164,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh, Search } from '@element-plus/icons-vue'
 import { workCenterApi } from '@/api/masterdata'
 import { catalogConfigs } from './catalogConfig'
+import BomFormDialog from './BomFormDialog.vue'
+import RoutingFormDialog from './RoutingFormDialog.vue'
 
 const activeKey = ref('products')
 const list = ref([])
@@ -149,6 +176,8 @@ const saving = ref(false)
 
 const query = reactive({ page: 1, pageSize: 20, keyword: '', isActive: null })
 const form = reactive({ visible: false, id: null, data: {} })
+const bomDialog = reactive({ visible: false, id: null })
+const routingDialog = reactive({ visible: false, id: null })
 
 const config = computed(() => catalogConfigs[activeKey.value])
 const dialogTitle = computed(() => `${form.id ? '编辑' : '新建'}${config.value.title}`)
@@ -216,9 +245,38 @@ function handleTabChange() {
 }
 
 function openForm(row) {
+  // BOM / 工艺路线使用专用表单（含明细行、工序步骤编辑）
+  if (config.value.formComponent === 'bom') {
+    bomDialog.id = row?.id || null
+    bomDialog.visible = true
+    return
+  }
+  if (config.value.formComponent === 'routing') {
+    routingDialog.id = row?.id || null
+    routingDialog.visible = true
+    return
+  }
+
   form.id = row?.id || null
   form.data = row ? { ...row } : config.value.createDefaults()
   form.visible = true
+}
+
+/** 版本化资源：设为生效版本（同产品其它版本自动失效） */
+async function activateRow(row) {
+  await ElMessageBox.confirm(`确定把版本「${row.version}」设为生效吗？同产品其它版本将自动失效。`, '提示', {
+    type: 'warning',
+  })
+  await config.value.api.activate(row.id)
+  ElMessage.success('已设为生效版本')
+  await loadData()
+}
+
+async function removeRow(row) {
+  await ElMessageBox.confirm(`确定删除版本「${row.version}」吗？`, '提示', { type: 'warning' })
+  await config.value.api.remove(row.id)
+  ElMessage.success('已删除')
+  await loadData()
 }
 
 async function submitForm() {

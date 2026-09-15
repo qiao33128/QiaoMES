@@ -1,8 +1,10 @@
 import {
+  bomApi,
   materialApi,
   MaterialTypeMap,
   operationApi,
   productApi,
+  routingApi,
   workCenterApi,
   WorkCenterTypeMap,
 } from '@/api/masterdata'
@@ -100,5 +102,36 @@ export const catalogConfigs = {
       { prop: 'remark', label: '备注' },
     ],
     createDefaults: () => ({ code: '', name: '', type: 0, workshop: '', remark: '' }),
+  },
+
+  boms: {
+    title: 'BOM',
+    api: bomApi,
+    // 明细行较多，使用专用表单对话框
+    formComponent: 'bom',
+    // 版本化资源：用「设为生效」代替启停
+    statusAction: 'activate',
+    columns: [
+      { prop: 'productCode', label: '产品编码', width: 140 },
+      { prop: 'productName', label: '产品名称', minWidth: 170 },
+      { prop: 'version', label: '版本', width: 100 },
+      { prop: 'itemCount', label: '明细数', width: 90 },
+      { prop: 'isActive', label: '状态', width: 90, type: 'bool', trueText: '生效', falseText: '历史' },
+    ],
+  },
+
+  routings: {
+    title: '工艺路线',
+    api: routingApi,
+    formComponent: 'routing',
+    statusAction: 'activate',
+    columns: [
+      { prop: 'productCode', label: '产品编码', width: 140 },
+      { prop: 'productName', label: '产品名称', minWidth: 170 },
+      { prop: 'version', label: '版本', width: 100 },
+      { prop: 'stepCount', label: '工序数', width: 90 },
+      { prop: 'totalStandardSeconds', label: '总工时(秒)', width: 110 },
+      { prop: 'isActive', label: '状态', width: 90, type: 'bool', trueText: '生效', falseText: '历史' },
+    ],
   },
 }

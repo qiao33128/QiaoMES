@@ -11,6 +11,8 @@ public static class DependencyInjection
         services.AddScoped<IMaterialService, MaterialService>();
         services.AddScoped<IWorkCenterService, WorkCenterService>();
         services.AddScoped<IOperationService, OperationService>();
+        services.AddScoped<IBomService, BomService>();
+        services.AddScoped<IRoutingService, RoutingService>();
         return services;
     }
 

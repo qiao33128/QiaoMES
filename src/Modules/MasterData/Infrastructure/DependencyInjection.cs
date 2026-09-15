@@ -15,6 +15,8 @@ public static class DependencyInjection
             options.UseNpgsql(serviceProvider.GetRequiredService<DbConnection>()));
 
         services.AddScoped<ICatalogRepository, CatalogRepository>();
+        services.AddScoped<IBomRepository, BomRepository>();
+        services.AddScoped<IRoutingRepository, RoutingRepository>();
 
         return services;
     }
