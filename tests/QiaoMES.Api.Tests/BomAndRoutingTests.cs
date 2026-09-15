@@ -82,7 +82,7 @@ public class BomAndRoutingTests(QiaoMESApiFactory factory)
             items = new[]
             {
                 new { materialId = materialB, quantity = 1m, unit = "PCS", lossRate = 0m, remark = (string?)null },
-                new { materialId = materialA, quantity = 3m, unit = "PCS", lossRate = 0m, remark = "备用" },
+                new { materialId = materialA, quantity = 3m, unit = "PCS", lossRate = 0m, remark = (string?)"备用" },
             },
         });
         response.EnsureSuccessStatusCode();
