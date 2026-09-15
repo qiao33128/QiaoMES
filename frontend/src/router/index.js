@@ -23,6 +23,18 @@ const routes = [
         meta: { title: '工单管理', permission: 'workorders:read' },
       },
       {
+        path: 'equipment',
+        name: 'equipment',
+        component: () => import('@/views/equipment/EquipmentView.vue'),
+        meta: { title: '设备与 Andon', permission: 'equipment:read' },
+      },
+      {
+        path: 'traceability',
+        name: 'traceability',
+        component: () => import('@/views/traceability/TraceabilityView.vue'),
+        meta: { title: '追溯查询', permission: 'workorders:read' },
+      },
+      {
         path: 'quality',
         name: 'quality',
         component: () => import('@/views/quality/QualityView.vue'),

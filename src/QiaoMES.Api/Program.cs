@@ -16,6 +16,10 @@ using QiaoMES.MasterData.Infrastructure;
 using QiaoMES.MasterData.Infrastructure.Persistence;
 using QiaoMES.Quality.Api;
 using QiaoMES.Quality.Infrastructure;
+using QiaoMES.Equipment.Api;
+using QiaoMES.Equipment.Api.Hubs;
+using QiaoMES.Equipment.Infrastructure;
+using QiaoMES.Equipment.Infrastructure.Persistence;
 using QiaoMES.Quality.Infrastructure.Persistence;
 using QiaoMES.Production.Api;
 using QiaoMES.Production.Api.Hubs;
@@ -48,6 +52,8 @@ builder.Services.AddMasterDataModule();
 builder.Services.AddMasterDataInfrastructure();
 builder.Services.AddQualityModule();
 builder.Services.AddQualityInfrastructure();
+builder.Services.AddEquipmentModule();
+builder.Services.AddEquipmentInfrastructure();
 
 // ---------- 控制器注册（集中配置 + 全局工作单元过滤器） ----------
 builder.Services.AddControllers()
@@ -55,7 +61,8 @@ builder.Services.AddControllers()
     .AddIdentityControllers()
     .AddProductionControllers()
     .AddMasterDataControllers()
-    .AddQualityControllers();
+    .AddQualityControllers()
+    .AddEquipmentControllers();
 
 // ---------- 认证授权（JWT + 权限策略） ----------
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
@@ -150,6 +157,8 @@ app.UseAuthorization();
 
 app.MapControllers();
 app.MapHub<ProductionHub>("/hubs/production");
+// Andon 实时看板通道
+app.MapHub<AndonHub>("/hubs/andon");
 
 // ---------- 健康检查 ----------
 // live：进程存活（不查依赖）；ready：依赖就绪（查数据库连通性）
@@ -167,10 +176,12 @@ using (var scope = app.Services.CreateScope())
     var productionDb = services.GetRequiredService<ProductionDbContext>();
     var masterDataDb = services.GetRequiredService<MasterDataDbContext>();
     var qualityDb = services.GetRequiredService<QualityDbContext>();
+    var equipmentDb = services.GetRequiredService<EquipmentDbContext>();
     await identityDb.Database.MigrateAsync();
     await productionDb.Database.MigrateAsync();
     await masterDataDb.Database.MigrateAsync();
     await qualityDb.Database.MigrateAsync();
+    await equipmentDb.Database.MigrateAsync();
 
     var passwordHasher = services.GetRequiredService<IPasswordHasher>();
     await IdentityDbSeeder.SeedAsync(identityDb, passwordHasher);

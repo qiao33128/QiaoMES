@@ -26,6 +26,14 @@
           <el-icon><Position /></el-icon>
           <template #title>SN 过站</template>
         </el-menu-item>
+        <el-menu-item v-if="authStore.hasPermission('equipment:read')" index="/equipment">
+          <el-icon><Bell /></el-icon>
+          <template #title>设备与 Andon</template>
+        </el-menu-item>
+        <el-menu-item v-if="authStore.hasPermission('workorders:read')" index="/traceability">
+          <el-icon><Search /></el-icon>
+          <template #title>追溯查询</template>
+        </el-menu-item>
         <el-menu-item v-if="authStore.hasPermission('quality:read')" index="/quality">
           <el-icon><CircleCheck /></el-icon>
           <template #title>质量管理</template>
@@ -89,6 +97,8 @@ import {
   Key,
   Position,
   CircleCheck,
+  Bell,
+  Search,
   User,
   UserFilled,
   Fold,

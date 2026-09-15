@@ -46,6 +46,12 @@
     <Project Path="Modules/Quality/Infrastructure/QiaoMES.Quality.Infrastructure.csproj" />
     <Project Path="Modules/Quality/Api/QiaoMES.Quality.Api.csproj" />
   </Folder>
+  <Folder Name="/Modules/Equipment/">
+    <Project Path="Modules/Equipment/Domain/QiaoMES.Equipment.Domain.csproj" />
+    <Project Path="Modules/Equipment/Application/QiaoMES.Equipment.Application.csproj" />
+    <Project Path="Modules/Equipment/Infrastructure/QiaoMES.Equipment.Infrastructure.csproj" />
+    <Project Path="Modules/Equipment/Api/QiaoMES.Equipment.Api.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="../tests/QiaoMES.Api.Tests/QiaoMES.Api.Tests.csproj" />
     <Project Path="../tests/QiaoMES.Domain.Tests/QiaoMES.Domain.Tests.csproj" />

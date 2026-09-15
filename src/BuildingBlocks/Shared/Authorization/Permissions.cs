@@ -41,6 +41,19 @@ public static class Permissions
         public const string Manage = "quality:manage";
     }
 
+    /// <summary>设备与 Andon 权限。</summary>
+    public static class Equipment
+    {
+        /// <summary>查看设备台账、状态、停机分析与 Andon 呼叫。</summary>
+        public const string Read = "equipment:read";
+
+        /// <summary>现场操作：切换设备状态、点检保养登记、Andon 呼叫与响应。</summary>
+        public const string Operate = "equipment:operate";
+
+        /// <summary>设备台账维护。</summary>
+        public const string Manage = "equipment:manage";
+    }
+
     /// <summary>用户管理权限。</summary>
     public static class Users
     {
