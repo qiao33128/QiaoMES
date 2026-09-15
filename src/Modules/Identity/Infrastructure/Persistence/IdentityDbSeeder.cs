@@ -36,6 +36,8 @@ public static class IdentityDbSeeder
                 Permissions.Equipment.Read,
                 Permissions.Equipment.Operate,
                 Permissions.Equipment.Manage,
+                Permissions.Reporting.Read,
+                Permissions.Reporting.Manage,
                 Permissions.Users.Read,
                 Permissions.Roles.Read,
             ]
@@ -52,6 +54,7 @@ public static class IdentityDbSeeder
                 Permissions.Quality.Inspect,
                 Permissions.Equipment.Read,
                 Permissions.Equipment.Operate,
+                Permissions.Reporting.Read,
             ]
         ),
     };

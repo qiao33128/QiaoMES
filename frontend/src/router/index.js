@@ -48,6 +48,12 @@ const routes = [
         meta: { title: '质量管理', permission: 'quality:read' },
       },
       {
+        path: 'reports',
+        name: 'reports',
+        component: () => import('@/views/reports/ReportsView.vue'),
+        meta: { title: '报表与班次', permission: 'reporting:read' },
+      },
+      {
         path: 'serial-numbers',
         name: 'serial-numbers',
         component: () => import('@/views/production/SerialNumberView.vue'),

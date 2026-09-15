@@ -26,6 +26,10 @@
           <el-icon><Position /></el-icon>
           <template #title>SN 过站</template>
         </el-menu-item>
+        <el-menu-item v-if="authStore.hasPermission('reporting:read')" index="/reports">
+          <el-icon><TrendCharts /></el-icon>
+          <template #title>报表与班次</template>
+        </el-menu-item>
         <el-menu-item v-if="authStore.hasPermission('workorders:read')" index="/display">
           <el-icon><Monitor /></el-icon>
           <template #title>车间大屏</template>
@@ -103,6 +107,7 @@ import {
   CircleCheck,
   Bell,
   Search,
+  TrendCharts,
   User,
   UserFilled,
   Fold,

@@ -54,6 +54,16 @@ public static class Permissions
         public const string Manage = "equipment:manage";
     }
 
+    /// <summary>报表 / 班次 / 日历权限。</summary>
+    public static class Reporting
+    {
+        /// <summary>查看报表、班次与生产日历。</summary>
+        public const string Read = "reporting:read";
+
+        /// <summary>班次与日历维护。</summary>
+        public const string Manage = "reporting:manage";
+    }
+
     /// <summary>用户管理权限。</summary>
     public static class Users
     {
