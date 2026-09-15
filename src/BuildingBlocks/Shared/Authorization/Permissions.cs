@@ -28,6 +28,19 @@ public static class Permissions
         public const string Manage = "masterdata:manage";
     }
 
+    /// <summary>质量模块权限（检验、不合格处置、不良代码）。</summary>
+    public static class Quality
+    {
+        /// <summary>查看检验单 / 处置单 / 不良代码 / SPC。</summary>
+        public const string Read = "quality:read";
+
+        /// <summary>执行检验（建单、录入、判定）。</summary>
+        public const string Inspect = "quality:inspect";
+
+        /// <summary>质量数据维护（不良代码、处置决策、维修）。</summary>
+        public const string Manage = "quality:manage";
+    }
+
     /// <summary>用户管理权限。</summary>
     public static class Users
     {

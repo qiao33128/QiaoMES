@@ -23,6 +23,12 @@ const routes = [
         meta: { title: '工单管理', permission: 'workorders:read' },
       },
       {
+        path: 'quality',
+        name: 'quality',
+        component: () => import('@/views/quality/QualityView.vue'),
+        meta: { title: '质量管理', permission: 'quality:read' },
+      },
+      {
         path: 'serial-numbers',
         name: 'serial-numbers',
         component: () => import('@/views/production/SerialNumberView.vue'),

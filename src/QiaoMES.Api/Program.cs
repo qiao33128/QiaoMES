@@ -14,6 +14,9 @@ using QiaoMES.Infrastructure.UnitOfWork;
 using QiaoMES.MasterData.Api;
 using QiaoMES.MasterData.Infrastructure;
 using QiaoMES.MasterData.Infrastructure.Persistence;
+using QiaoMES.Quality.Api;
+using QiaoMES.Quality.Infrastructure;
+using QiaoMES.Quality.Infrastructure.Persistence;
 using QiaoMES.Production.Api;
 using QiaoMES.Production.Api.Hubs;
 using QiaoMES.Production.Infrastructure;
@@ -43,13 +46,16 @@ builder.Services.AddProductionModule();
 builder.Services.AddProductionInfrastructure();
 builder.Services.AddMasterDataModule();
 builder.Services.AddMasterDataInfrastructure();
+builder.Services.AddQualityModule();
+builder.Services.AddQualityInfrastructure();
 
 // ---------- 控制器注册（集中配置 + 全局工作单元过滤器） ----------
 builder.Services.AddControllers()
     .AddUnitOfWork()
     .AddIdentityControllers()
     .AddProductionControllers()
-    .AddMasterDataControllers();
+    .AddMasterDataControllers()
+    .AddQualityControllers();
 
 // ---------- 认证授权（JWT + 权限策略） ----------
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
@@ -160,9 +166,11 @@ using (var scope = app.Services.CreateScope())
     var identityDb = services.GetRequiredService<IdentityDbContext>();
     var productionDb = services.GetRequiredService<ProductionDbContext>();
     var masterDataDb = services.GetRequiredService<MasterDataDbContext>();
+    var qualityDb = services.GetRequiredService<QualityDbContext>();
     await identityDb.Database.MigrateAsync();
     await productionDb.Database.MigrateAsync();
     await masterDataDb.Database.MigrateAsync();
+    await qualityDb.Database.MigrateAsync();
 
     var passwordHasher = services.GetRequiredService<IPasswordHasher>();
     await IdentityDbSeeder.SeedAsync(identityDb, passwordHasher);

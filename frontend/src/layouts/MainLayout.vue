@@ -26,6 +26,10 @@
           <el-icon><Position /></el-icon>
           <template #title>SN 过站</template>
         </el-menu-item>
+        <el-menu-item v-if="authStore.hasPermission('quality:read')" index="/quality">
+          <el-icon><CircleCheck /></el-icon>
+          <template #title>质量管理</template>
+        </el-menu-item>
         <el-menu-item v-if="authStore.hasPermission('masterdata:read')" index="/master-data">
           <el-icon><Grid /></el-icon>
           <template #title>主数据维护</template>
@@ -84,6 +88,7 @@ import {
   Grid,
   Key,
   Position,
+  CircleCheck,
   User,
   UserFilled,
   Fold,
