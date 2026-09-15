@@ -52,3 +52,14 @@ public record WipTrackingDto(
 
 /// <summary>SN 详情（含过站轨迹）。</summary>
 public record SerialNumberDetailDto(SerialNumberDto SerialNumber, IReadOnlyList<WipTrackingDto> Trackings);
+
+/// <summary>
+/// 生产统计快照（大屏 / 报表用）。<see cref="YieldRate"/> = 完工 / (完工 + 报废)。
+/// </summary>
+public record ProductionStatsDto(
+    int Total,
+    int InProcess,
+    int Completed,
+    int Scrapped,
+    int OnHold,
+    decimal YieldRate);

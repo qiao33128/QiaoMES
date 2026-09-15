@@ -10,4 +10,8 @@ export const traceabilityApi = {
   byWorkOrder(workOrderId) {
     return http.get(`/traceability/batch/${workOrderId}`)
   },
+  /** 来料批次反向追溯（该批次流向的 SN 及其质量状态） */
+  byLot(lotNumber, maxSn = 100) {
+    return http.get(`/traceability/lot/${encodeURIComponent(lotNumber)}`, { params: { maxSn } })
+  },
 }

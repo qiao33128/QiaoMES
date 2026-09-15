@@ -59,6 +59,30 @@ public class SerialNumberRepository(ProductionDbContext db) : ISerialNumberRepos
         return (items, totalCount);
     }
 
+    public async Task<IReadOnlyList<(SerialNumberStatus Status, int Count)>> CountByStatusAsync(
+        DateTime? from = null,
+        DateTime? to = null,
+        CancellationToken cancellationToken = default)
+    {
+        IQueryable<SerialNumber> source = db.SerialNumbers.AsNoTracking();
+
+        if (from is not null)
+        {
+            source = source.Where(s => s.CreatedAt >= from);
+        }
+        if (to is not null)
+        {
+            source = source.Where(s => s.CreatedAt <= to);
+        }
+
+        var grouped = await source
+            .GroupBy(s => s.Status)
+            .Select(group => new { Status = group.Key, Count = group.Count() })
+            .ToListAsync(cancellationToken);
+
+        return grouped.Select(x => (x.Status, x.Count)).ToList();
+    }
+
     public void Add(SerialNumber serialNumber) => db.SerialNumbers.Add(serialNumber);
 
     public void AddTracking(WipTracking tracking) => db.WipTrackings.Add(tracking);

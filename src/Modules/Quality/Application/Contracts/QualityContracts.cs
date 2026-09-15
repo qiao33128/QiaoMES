@@ -31,6 +31,8 @@ public record CreateInspectionRequest(
     string? Sn = null,
     Guid? MaterialId = null,
     string? MaterialCode = null,
+    /// <summary>来料批次号（IQC 时填写；判定后自动回写批次状态）。</summary>
+    string? LotNumber = null,
     string? ProductCode = null,
     string? AqlLevel = null,
     int AcceptedLimit = 0,
@@ -81,6 +83,7 @@ public record InspectionDto(
     string? Sn,
     Guid? MaterialId,
     string? MaterialCode,
+    string? LotNumber,
     string? ProductCode,
     int SampleSize,
     string? AqlLevel,
@@ -196,3 +199,105 @@ public record SpcTrendDto(
     bool HasSignal,
     string? SignalDescription,
     IReadOnlyList<SpcPointDto> Points);
+
+// ---------------- 来料批次与谱系 ----------------
+
+public record MaterialLotQueryRequest(
+    string? Keyword = null,
+    string? MaterialCode = null,
+    MaterialLotStatus? Status = null,
+    DateTime? From = null,
+    DateTime? To = null,
+    int Page = 1,
+    int PageSize = 20);
+
+public record CreateMaterialLotRequest(
+    string LotNumber,
+    string MaterialCode,
+    decimal Quantity,
+    string? MaterialName = null,
+    string? Supplier = null,
+    string? SupplierLotNumber = null,
+    string? Unit = null,
+    DateTime? ReceivedAt = null,
+    string? Remark = null);
+
+/// <summary>IQC 结论回写批次状态。</summary>
+public record InspectMaterialLotRequest(
+    bool Passed,
+    Guid? InspectionId = null,
+    string? InspectionNumber = null,
+    string? Reason = null);
+
+public record FreezeMaterialLotRequest(bool Frozen, string? Reason = null);
+
+public record MaterialLotDto(
+    Guid Id,
+    string LotNumber,
+    string MaterialCode,
+    string? MaterialName,
+    string? Supplier,
+    string? SupplierLotNumber,
+    decimal Quantity,
+    decimal RemainingQuantity,
+    string? Unit,
+    DateTime ReceivedAt,
+    MaterialLotStatus Status,
+    string? StatusReason,
+    Guid? IqcInspectionId,
+    string? IqcInspectionNumber,
+    DateTime? InspectedAt,
+    string? Remark,
+    DateTime CreatedAt,
+    DateTime? UpdatedAt,
+    int ConsumedSnCount,
+    decimal ConsumedQuantity);
+
+/// <summary>SN 绑定来料批次（下游谱系写入）。</summary>
+public record BindMaterialConsumptionRequest(
+    string Sn,
+    string MaterialCode,
+    string LotNumber,
+    decimal Quantity,
+    Guid? WorkOrderId = null,
+    Guid? WorkOrderOperationId = null,
+    string? OperationName = null,
+    string? EquipmentCode = null,
+    string? Remark = null);
+
+public record BindMaterialConsumptionsRequest(IReadOnlyList<BindMaterialConsumptionRequest> Items);
+
+public record SnMaterialConsumptionDto(
+    Guid Id,
+    string Sn,
+    string MaterialCode,
+    string LotNumber,
+    decimal Quantity,
+    Guid? WorkOrderId,
+    Guid? WorkOrderOperationId,
+    string? OperationName,
+    string? EquipmentCode,
+    Guid? OperatorId,
+    DateTime BoundAt,
+    string? Remark);
+
+/// <summary>批次流向汇总（反向追溯：来料批次 → 受影响 SN 集合）。</summary>
+public record MaterialLotTraceDto(
+    MaterialLotDto Lot,
+    int SnCount,
+    decimal ConsumedQuantity,
+    IReadOnlyList<SnMaterialConsumptionDto> Consumptions);
+
+// ---------------- 指标统计（大屏 / 报表） ----------------
+
+/// <summary>
+/// 质量统计快照。<see cref="Fpy"/> 为一次合格率 = 合格单 / 已判定单（让步接收计为未一次合格）。
+/// </summary>
+public record QualityStatsDto(
+    int Total,
+    int Pending,
+    int Passed,
+    int Failed,
+    int Concessioned,
+    int DefectQuantity,
+    decimal Fpy);

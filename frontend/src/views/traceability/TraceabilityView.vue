@@ -93,6 +93,25 @@
             </el-table>
           </el-card>
 
+          <!-- 上游：来料批次谱系 -->
+          <el-card shadow="never">
+            <template #header>
+              <span>料 · 来料批次（上游谱系，{{ report.materialLots?.length || 0 }}）</span>
+            </template>
+            <el-table v-if="report.materialLots?.length" :data="report.materialLots" size="small" border>
+              <el-table-column prop="lotNumber" label="批次号" width="180" />
+              <el-table-column prop="materialCode" label="物料编码" width="150" />
+              <el-table-column prop="quantity" label="用量" width="90" />
+              <el-table-column label="工序" width="120">
+                <template #default="{ row }">{{ row.operationName || '-' }}</template>
+              </el-table-column>
+              <el-table-column label="绑定时间" width="170">
+                <template #default="{ row }">{{ formatTime(row.boundAt) }}</template>
+              </el-table-column>
+            </el-table>
+            <el-empty v-else description="该 SN 尚未绑定来料批次（可在「质量管理 → 来料批次」中绑定）" :image-size="70" />
+          </el-card>
+
           <!-- 环：质量记录 -->
           <el-card shadow="never">
             <template #header>
@@ -163,7 +182,66 @@
           </el-form>
         </el-card>
 
-        <el-empty v-if="!batch" description="选择工单，查看该批次全部 SN 的影响范围" :image-size="90" />
+        <!-- 来料批次反查（上游 → 下游影响范围） -->
+        <el-card shadow="never" class="filter-card">
+          <el-form :inline="true">
+            <el-form-item label="来料批次">
+              <el-input
+                v-model="lotInput"
+                placeholder="输入来料批次号，反查受影响 SN"
+                clearable
+                style="width: 280px"
+                @keyup.enter="handleQueryLot"
+              />
+            </el-form-item>
+            <el-form-item>
+              <el-button type="warning" :icon="Search" :loading="loading" @click="handleQueryLot">反查影响范围</el-button>
+            </el-form-item>
+          </el-form>
+        </el-card>
+
+        <div v-if="lotTrace" class="lot-trace">
+          <el-descriptions :column="3" border size="small">
+            <el-descriptions-item label="批次号">{{ lotTrace.lot.lotNumber }}</el-descriptions-item>
+            <el-descriptions-item label="物料">{{ lotTrace.lot.materialCode }} {{ lotTrace.lot.materialName || '' }}</el-descriptions-item>
+            <el-descriptions-item label="供应商">{{ lotTrace.lot.supplier || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="批次状态">{{ MaterialLotStatusMap[lotTrace.lot.status]?.label }}</el-descriptions-item>
+            <el-descriptions-item label="流向 SN 数">{{ lotTrace.snCount }}</el-descriptions-item>
+            <el-descriptions-item label="累计消耗">{{ lotTrace.consumedQuantity }}</el-descriptions-item>
+            <el-descriptions-item label="不合格检验单">
+              <span :class="{ 'text-danger': lotTrace.inspectionFailCount > 0 }">{{ lotTrace.inspectionFailCount }}</span>
+            </el-descriptions-item>
+            <el-descriptions-item label="已完工 SN">{{ completedSnCount }}</el-descriptions-item>
+            <el-descriptions-item label="已报废 SN">{{ scrappedSnCount }}</el-descriptions-item>
+          </el-descriptions>
+
+          <el-card shadow="never" class="mt-12">
+            <el-table :data="lotTrace.serialNumbers" size="small" stripe>
+              <el-table-column prop="sn" label="SN" min-width="220" />
+              <el-table-column label="当前工序" width="130">
+                <template #default="{ row }">{{ row.currentOperationName || '-' }}</template>
+              </el-table-column>
+              <el-table-column label="状态" width="100">
+                <template #default="{ row }">
+                  <el-tag :type="SerialNumberStatusMap[row.status]?.type" size="small">
+                    {{ SerialNumberStatusMap[row.status]?.label }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="110">
+                <template #default="{ row }">
+                  <el-button size="small" plain @click="jumpToSn(row.sn)">查看追溯</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </el-card>
+        </div>
+
+        <el-empty
+          v-if="!batch && !lotTrace"
+          description="选择工单，或输入来料批次号，查看影响范围"
+          :image-size="90"
+        />
 
         <div v-else>
           <el-row :gutter="12" class="summary-row">
@@ -205,13 +283,19 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
 import { traceabilityApi } from '@/api/traceability'
 import { workOrderApi } from '@/api/workorder'
 import { SerialNumberStatusMap, WipActionMap, WipResultMap } from '@/api/production'
-import { DispositionStatusMap, DispositionTypeMap, InspectionStatusMap, InspectionTypeMap } from '@/api/quality'
+import {
+  DispositionStatusMap,
+  DispositionTypeMap,
+  InspectionStatusMap,
+  InspectionTypeMap,
+  MaterialLotStatusMap,
+} from '@/api/quality'
 
 const activeTab = ref('sn')
 const loading = ref(false)
@@ -221,6 +305,15 @@ const report = ref(null)
 const workOrders = ref([])
 const workOrderId = ref(null)
 const batch = ref(null)
+const lotInput = ref('')
+const lotTrace = ref(null)
+
+const completedSnCount = computed(
+  () => (lotTrace.value?.serialNumbers || []).filter((item) => item.status === 1).length,
+)
+const scrappedSnCount = computed(
+  () => (lotTrace.value?.serialNumbers || []).filter((item) => item.status === 2).length,
+)
 
 function formatTime(value) {
   return value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '-'
@@ -237,6 +330,22 @@ async function handleQuerySn() {
     report.value = await traceabilityApi.bySn(snInput.value.trim())
   } catch {
     report.value = null
+  } finally {
+    loading.value = false
+  }
+}
+
+async function handleQueryLot() {
+  if (!lotInput.value.trim()) {
+    ElMessage.warning('请输入来料批次号')
+    return
+  }
+
+  loading.value = true
+  try {
+    lotTrace.value = await traceabilityApi.byLot(lotInput.value.trim())
+  } catch {
+    lotTrace.value = null
   } finally {
     loading.value = false
   }

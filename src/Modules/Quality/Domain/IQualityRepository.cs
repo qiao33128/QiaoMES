@@ -114,6 +114,12 @@ public interface IInspectionRepository
     /// <summary>按 SN 取检验历史（追溯用）。</summary>
     Task<IReadOnlyList<Inspection>> GetBySnAsync(string sn, CancellationToken cancellationToken = default);
 
+    /// <summary>按状态统计检验单数量与不良数（指标统计用；from / to 按创建时间过滤）。</summary>
+    Task<IReadOnlyList<(InspectionStatus Status, int Count, int DefectQuantity)>> CountByStatusAsync(
+        DateTime? from = null,
+        DateTime? to = null,
+        CancellationToken cancellationToken = default);
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
 
@@ -164,6 +170,79 @@ public interface IDefectCodeRepository
         CancellationToken cancellationToken = default);
 
     void Add(DefectCode defectCode);
+
+    Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
+}
+
+/// <summary>来料批次查询条件。</summary>
+public sealed record MaterialLotQuery
+{
+    public const int MaxPageSize = 100;
+    public const int DefaultPageSize = 20;
+
+    /// <summary>关键字：批次号 / 物料编码 / 供应商。</summary>
+    public string? Keyword { get; init; }
+
+    public string? MaterialCode { get; init; }
+
+    public MaterialLotStatus? Status { get; init; }
+
+    public DateTime? From { get; init; }
+
+    public DateTime? To { get; init; }
+
+    public int Page { get; init; } = 1;
+
+    public int PageSize { get; init; } = DefaultPageSize;
+
+    public int NormalizedPage => Page < 1 ? 1 : Page;
+
+    public int NormalizedPageSize => PageSize is < 1 or > MaxPageSize ? DefaultPageSize : PageSize;
+
+    public int Skip => (NormalizedPage - 1) * NormalizedPageSize;
+}
+
+/// <summary>
+/// 来料批次与 SN 批次谱系仓储（上游 = 批次，下游 = 消耗该批次的 SN）。
+/// </summary>
+public interface IMaterialLotRepository
+{
+    Task<MaterialLot?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+
+    Task<MaterialLot?> GetByLotNumberAsync(string lotNumber, CancellationToken cancellationToken = default);
+
+    Task<bool> IsLotNumberTakenAsync(string lotNumber, Guid? excludeId = null, CancellationToken cancellationToken = default);
+
+    Task<(IReadOnlyList<MaterialLot> Items, int TotalCount)> QueryAsync(
+        MaterialLotQuery query,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>按批次统计已绑定的 SN 数量与消耗总量。</summary>
+    Task<(int SnCount, decimal ConsumedQuantity)> GetLotConsumptionSummaryAsync(
+        string lotNumber,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>取某 SN 消耗的全部批次（正向追溯：成品 ← 来料）。</summary>
+    Task<IReadOnlyList<SnMaterialConsumption>> GetConsumptionsBySnAsync(
+        string sn,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>取某批次的消耗明细（反向追溯：来料 → 受影响 SN）。</summary>
+    Task<IReadOnlyList<SnMaterialConsumption>> GetConsumptionsByLotAsync(
+        string lotNumber,
+        int take,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>判断某 SN 是否已绑定过该批次（幂等绑定用）。</summary>
+    Task<bool> ConsumptionExistsAsync(
+        string sn,
+        string lotNumber,
+        string materialCode,
+        CancellationToken cancellationToken = default);
+
+    void Add(MaterialLot lot);
+
+    void AddConsumption(SnMaterialConsumption consumption);
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

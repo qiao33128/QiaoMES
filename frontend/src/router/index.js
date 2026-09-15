@@ -9,6 +9,13 @@ const routes = [
     meta: { public: true, title: '登录' },
   },
   {
+    // 车间大屏：独立全屏布局，不套侧边导航
+    path: '/display',
+    name: 'display',
+    component: () => import('@/views/display/DisplayView.vue'),
+    meta: { title: '车间大屏', permission: 'workorders:read' },
+  },
+  {
     path: '/',
     component: () => import('@/layouts/MainLayout.vue'),
     children: [

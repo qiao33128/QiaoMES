@@ -17,6 +17,7 @@ public static class DependencyInjection
         services.AddScoped<IInspectionRepository, InspectionRepository>();
         services.AddScoped<INonconformanceRepository, NonconformanceRepository>();
         services.AddScoped<IDefectCodeRepository, DefectCodeRepository>();
+        services.AddScoped<IMaterialLotRepository, MaterialLotRepository>();
 
         return services;
     }

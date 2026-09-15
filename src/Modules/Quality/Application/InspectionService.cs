@@ -24,11 +24,18 @@ public interface IInspectionService
 
     /// <summary>按 SN 查询检验历史（追溯用）。</summary>
     Task<Result<IReadOnlyList<InspectionDto>>> GetBySnAsync(string sn, CancellationToken cancellationToken = default);
+
+    /// <summary>检验统计快照（大屏 / 报表用）。</summary>
+    Task<Result<QualityStatsDto>> GetStatsAsync(
+        DateTime? from = null,
+        DateTime? to = null,
+        CancellationToken cancellationToken = default);
 }
 
 public class InspectionService(
     IInspectionRepository repository,
     INonconformanceRepository nonconformanceRepository,
+    IMaterialLotRepository materialLotRepository,
     ICurrentUser currentUser) : IInspectionService
 {
     public async Task<Result<PagedResult<InspectionDto>>> GetListAsync(
@@ -98,6 +105,7 @@ public class InspectionService(
             request.Sn,
             request.MaterialId,
             request.MaterialCode,
+            request.LotNumber,
             request.ProductCode,
             request.AqlLevel,
             request.AcceptedLimit,
@@ -199,6 +207,22 @@ public class InspectionService(
             return Result.Failure<InspectionDto>(result.Error);
         }
 
+        // IQC 判定后自动回写来料批次状态（上游谱系的准入口）
+        if (inspection.Type == InspectionType.Iqc && !string.IsNullOrWhiteSpace(inspection.LotNumber))
+        {
+            var lot = await materialLotRepository.GetByLotNumberAsync(inspection.LotNumber!, cancellationToken);
+            if (lot is not null)
+            {
+                lot.MarkInspected(
+                    inspection.Status is InspectionStatus.Passed or InspectionStatus.Concessioned,
+                    inspection.Id,
+                    inspection.InspectionNumber,
+                    inspection.Status == InspectionStatus.Concessioned
+                        ? "IQC 让步接收"
+                        : $"IQC {inspection.InspectionNumber} 判定不合格");
+            }
+        }
+
         // 判定不合格 → 按需自动派生不合格处置单
         if (inspection.NeedsDisposition && request.CreateNonconformance)
         {
@@ -236,6 +260,33 @@ public class InspectionService(
         return Result.Success<IReadOnlyList<InspectionDto>>(items.Select(ToDto).ToList());
     }
 
+    public async Task<Result<QualityStatsDto>> GetStatsAsync(
+        DateTime? from = null,
+        DateTime? to = null,
+        CancellationToken cancellationToken = default)
+    {
+        var counts = await repository.CountByStatusAsync(from, to, cancellationToken);
+        var lookup = counts.ToDictionary(x => x.Status, x => (x.Count, x.DefectQuantity));
+
+        var passed = lookup.GetValueOrDefault(InspectionStatus.Passed).Count;
+        var failed = lookup.GetValueOrDefault(InspectionStatus.Failed).Count;
+        var concessioned = lookup.GetValueOrDefault(InspectionStatus.Concessioned).Count;
+        var pending = lookup.GetValueOrDefault(InspectionStatus.Pending).Count
+                      + lookup.GetValueOrDefault(InspectionStatus.InProgress).Count;
+
+        var judged = passed + failed + concessioned;
+        var fpy = judged == 0 ? 0m : Math.Round((decimal)passed / judged * 100m, 2);
+
+        return Result.Success(new QualityStatsDto(
+            counts.Sum(x => x.Count),
+            pending,
+            passed,
+            failed,
+            concessioned,
+            counts.Sum(x => x.DefectQuantity),
+            fpy));
+    }
+
     private static Result<InspectionDto> NotFound()
         => Result.Failure<InspectionDto>(Error.NotFound("Inspection.NotFound", "检验单不存在"));
 
@@ -250,6 +301,7 @@ public class InspectionService(
         inspection.Sn,
         inspection.MaterialId,
         inspection.MaterialCode,
+        inspection.LotNumber,
         inspection.ProductCode,
         inspection.SampleSize,
         inspection.AqlLevel,

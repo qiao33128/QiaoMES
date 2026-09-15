@@ -26,6 +26,10 @@
           <el-icon><Position /></el-icon>
           <template #title>SN 过站</template>
         </el-menu-item>
+        <el-menu-item v-if="authStore.hasPermission('workorders:read')" index="/display">
+          <el-icon><Monitor /></el-icon>
+          <template #title>车间大屏</template>
+        </el-menu-item>
         <el-menu-item v-if="authStore.hasPermission('equipment:read')" index="/equipment">
           <el-icon><Bell /></el-icon>
           <template #title>设备与 Andon</template>

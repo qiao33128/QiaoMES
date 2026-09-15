@@ -10,6 +10,7 @@ public static class DependencyInjection
         services.AddScoped<IInspectionService, InspectionService>();
         services.AddScoped<INonconformanceService, NonconformanceService>();
         services.AddScoped<IDefectCodeService, DefectCodeService>();
+        services.AddScoped<IMaterialLotService, MaterialLotService>();
         services.AddScoped<ISpcService, SpcService>();
         return services;
     }

@@ -23,6 +23,7 @@ namespace QiaoMES.Api.Controllers;
 /// <param name="Bom">下达时快照的 BOM（料）。</param>
 /// <param name="Inspections">该 SN 的全部检验记录（环 / 质量）。</param>
 /// <param name="Nonconformances">该 SN 的不合格处置与维修记录。</param>
+/// <param name="MaterialLots">该 SN 消耗的来料批次（上游谱系：成品 ← 来料）。</param>
 public record TraceabilityReport(
     string Sn,
     SerialNumberDetailDto? SerialNumber,
@@ -30,7 +31,23 @@ public record TraceabilityReport(
     RoutingDto? Routing,
     BomDto? Bom,
     IReadOnlyList<InspectionDto> Inspections,
-    IReadOnlyList<NonconformanceDto> Nonconformances);
+    IReadOnlyList<NonconformanceDto> Nonconformances,
+    IReadOnlyList<SnMaterialConsumptionDto> MaterialLots);
+
+/// <summary>来料批次影响范围（反向追溯：来料 → 受影响成品集合）。</summary>
+/// <param name="Lot">批次信息（含 IQC 结论与余量）。</param>
+/// <param name="SnCount">绑定该批次的 SN 去重数。</param>
+/// <param name="ConsumedQuantity">该批次累计消耗量。</param>
+/// <param name="SerialNumbers">受影响 SN 的当前状态。</param>
+/// <param name="Inspections">这些 SN 的全部检验记录。</param>
+/// <param name="InspectionFailCount">其中不合格的检验单数量。</param>
+public record MaterialLotTraceReport(
+    MaterialLotDto Lot,
+    int SnCount,
+    decimal ConsumedQuantity,
+    IReadOnlyList<SerialNumberDto> SerialNumbers,
+    IReadOnlyList<InspectionDto> Inspections,
+    int InspectionFailCount);
 
 /// <summary>批次影响范围（客诉时快速定位同批全量）。</summary>
 /// <param name="WorkOrderId">工单。</param>
@@ -63,7 +80,8 @@ public class TraceabilityController(
     IRoutingService routingService,
     IBomService bomService,
     IInspectionService inspectionService,
-    INonconformanceService nonconformanceService) : ControllerBase
+    INonconformanceService nonconformanceService,
+    IMaterialLotService materialLotService) : ControllerBase
 {
     /// <summary>按 SN 生成完整追溯报告（人机料法环）。</summary>
     [HttpGet("sn/{sn}")]
@@ -118,6 +136,14 @@ public class TraceabilityController(
             nonconformances.AddRange(nonconformanceResult.Value.Items);
         }
 
+        // 上游谱系：该 SN 消耗的来料批次
+        var materialLots = new List<SnMaterialConsumptionDto>();
+        var consumptionResult = await materialLotService.GetConsumptionsBySnAsync(sn, cancellationToken);
+        if (consumptionResult.IsSuccess)
+        {
+            materialLots.AddRange(consumptionResult.Value);
+        }
+
         return Ok(new TraceabilityReport(
             sn,
             serialDetail,
@@ -125,7 +151,8 @@ public class TraceabilityController(
             routing,
             bom,
             inspections,
-            nonconformances));
+            nonconformances,
+            materialLots));
     }
 
     /// <summary>批次影响范围：某工单下全部 SN 的状态汇总与明细。</summary>
@@ -167,5 +194,54 @@ public class TraceabilityController(
             nonconformances.IsSuccess ? nonconformances.Value.TotalCount : 0,
             inspectionItems.Count(i => i.Status == QiaoMES.Quality.Domain.InspectionStatus.Failed),
             items));
+    }
+
+    /// <summary>
+    /// 来料批次反向追溯：某批来料流向的全部 SN 及其质量状态（客诉时定位同批影响范围）。
+    /// </summary>
+    [HttpGet("lot/{lotNumber}")]
+    [HasPermission(Permissions.WorkOrders.Read)]
+    public async Task<IActionResult> GetByLotNumber(
+        string lotNumber,
+        [FromQuery] int maxSn = 100,
+        CancellationToken cancellationToken = default)
+    {
+        var traceResult = await materialLotService.GetLotTraceAsync(lotNumber, 500, cancellationToken);
+        if (traceResult.IsFailure)
+        {
+            return ApiResults.Problem(traceResult.Error);
+        }
+
+        var trace = traceResult.Value;
+        var limit = maxSn is < 1 or > 500 ? 100 : maxSn;
+
+        var serialNumbers = new List<SerialNumberDto>();
+        var inspections = new List<InspectionDto>();
+
+        // 逐颗回查 SN 状态与检验结论，形成「批次 → 受影响成品」清单
+        foreach (var sn in trace.Consumptions.Select(c => c.Sn).Distinct().Take(limit))
+        {
+            var serialResult = await serialNumberService.GetBySnAsync(sn, cancellationToken);
+            if (serialResult.IsFailure)
+            {
+                continue;
+            }
+
+            serialNumbers.Add(serialResult.Value.SerialNumber);
+
+            var inspectionResult = await inspectionService.GetBySnAsync(sn, cancellationToken);
+            if (inspectionResult.IsSuccess)
+            {
+                inspections.AddRange(inspectionResult.Value);
+            }
+        }
+
+        return Ok(new MaterialLotTraceReport(
+            trace.Lot,
+            trace.SnCount,
+            trace.ConsumedQuantity,
+            serialNumbers,
+            inspections,
+            inspections.Count(i => i.Status == QiaoMES.Quality.Domain.InspectionStatus.Failed)));
     }
 }

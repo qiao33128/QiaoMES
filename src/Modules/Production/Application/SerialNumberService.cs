@@ -198,6 +198,31 @@ public class SerialNumberService(
         return Result.Success(ToDetailDto(entity, workOrder?.OrderNumber ?? string.Empty));
     }
 
+    public async Task<Result<ProductionStatsDto>> GetStatsAsync(
+        DateTime? from = null,
+        DateTime? to = null,
+        CancellationToken cancellationToken = default)
+    {
+        var counts = await serialNumberRepository.CountByStatusAsync(from, to, cancellationToken);
+        var lookup = counts.ToDictionary(x => x.Status, x => x.Count);
+
+        var completed = lookup.GetValueOrDefault(SerialNumberStatus.Completed);
+        var scrapped = lookup.GetValueOrDefault(SerialNumberStatus.Scrapped);
+        var inProcess = lookup.GetValueOrDefault(SerialNumberStatus.InProcess);
+        var onHold = lookup.GetValueOrDefault(SerialNumberStatus.OnHold);
+
+        var finished = completed + scrapped;
+        var yieldRate = finished == 0 ? 0m : Math.Round((decimal)completed / finished * 100m, 2);
+
+        return Result.Success(new ProductionStatsDto(
+            counts.Sum(x => x.Count),
+            inProcess,
+            completed,
+            scrapped,
+            onHold,
+            yieldRate));
+    }
+
     private async Task<Dictionary<Guid, string>> LoadOrderNumbersAsync(
         IEnumerable<Guid> workOrderIds,
         CancellationToken cancellationToken)

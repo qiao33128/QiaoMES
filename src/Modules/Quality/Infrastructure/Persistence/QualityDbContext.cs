@@ -13,6 +13,8 @@ public class QualityDbContext(DbContextOptions<QualityDbContext> options) : DbCo
     public DbSet<Nonconformance> Nonconformances => Set<Nonconformance>();
     public DbSet<RepairRecord> RepairRecords => Set<RepairRecord>();
     public DbSet<DefectCode> DefectCodes => Set<DefectCode>();
+    public DbSet<MaterialLot> MaterialLots => Set<MaterialLot>();
+    public DbSet<SnMaterialConsumption> SnMaterialConsumptions => Set<SnMaterialConsumption>();
     public DbSet<QualityDailySequence> DailySequences => Set<QualityDailySequence>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -26,6 +28,7 @@ public class QualityDbContext(DbContextOptions<QualityDbContext> options) : DbCo
         inspection.Property(i => i.InspectionNumber).HasMaxLength(50).IsRequired();
         inspection.Property(i => i.Sn).HasMaxLength(100);
         inspection.Property(i => i.MaterialCode).HasMaxLength(100);
+        inspection.Property(i => i.LotNumber).HasMaxLength(100);
         inspection.Property(i => i.ProductCode).HasMaxLength(100);
         inspection.Property(i => i.AqlLevel).HasMaxLength(50);
         inspection.Property(i => i.InspectorName).HasMaxLength(100);
@@ -106,6 +109,43 @@ public class QualityDbContext(DbContextOptions<QualityDbContext> options) : DbCo
         sequence.Property(s => s.SequenceKey).HasColumnName("sequence_key").HasMaxLength(50);
         sequence.Property(s => s.LastValue).HasColumnName("last_value").IsRequired();
         sequence.Property(s => s.UpdatedAt).HasColumnName("updated_at").IsRequired();
+
+        // ---------- 来料批次（上游谱系） ----------
+        var materialLot = modelBuilder.Entity<MaterialLot>();
+        materialLot.ToTable("material_lots");
+        materialLot.HasKey(l => l.Id);
+        materialLot.Property(l => l.LotNumber).HasMaxLength(100).IsRequired();
+        materialLot.Property(l => l.MaterialCode).HasMaxLength(100).IsRequired();
+        materialLot.Property(l => l.MaterialName).HasMaxLength(200);
+        materialLot.Property(l => l.Supplier).HasMaxLength(200);
+        materialLot.Property(l => l.SupplierLotNumber).HasMaxLength(100);
+        materialLot.Property(l => l.Unit).HasMaxLength(20);
+        materialLot.Property(l => l.Quantity).HasPrecision(18, 4);
+        materialLot.Property(l => l.RemainingQuantity).HasPrecision(18, 4);
+        materialLot.Property(l => l.Status).HasConversion<int>();
+        materialLot.Property(l => l.StatusReason).HasMaxLength(200);
+        materialLot.Property(l => l.IqcInspectionNumber).HasMaxLength(50);
+        materialLot.Property(l => l.Remark).HasMaxLength(500);
+        materialLot.HasIndex(l => l.LotNumber).IsUnique();
+        materialLot.HasIndex(l => new { l.MaterialCode, l.Status });
+        materialLot.HasIndex(l => l.ReceivedAt);
+        materialLot.HasQueryFilter(l => !l.IsDeleted);
+
+        // ---------- SN 批次消耗（下游谱系） ----------
+        var consumption = modelBuilder.Entity<SnMaterialConsumption>();
+        consumption.ToTable("sn_material_consumptions");
+        consumption.HasKey(c => c.Id);
+        consumption.Property(c => c.Sn).HasMaxLength(100).IsRequired();
+        consumption.Property(c => c.MaterialCode).HasMaxLength(100).IsRequired();
+        consumption.Property(c => c.LotNumber).HasMaxLength(100).IsRequired();
+        consumption.Property(c => c.Quantity).HasPrecision(18, 4);
+        consumption.Property(c => c.OperationName).HasMaxLength(100);
+        consumption.Property(c => c.EquipmentCode).HasMaxLength(50);
+        consumption.Property(c => c.Remark).HasMaxLength(500);
+        // 同一 SN + 批次 + 物料 只允许绑定一次（幂等）
+        consumption.HasIndex(c => new { c.Sn, c.LotNumber, c.MaterialCode }).IsUnique();
+        consumption.HasIndex(c => c.LotNumber);
+        consumption.HasIndex(c => c.BoundAt);
 
         base.OnModelCreating(modelBuilder);
     }

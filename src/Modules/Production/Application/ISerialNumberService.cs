@@ -35,4 +35,10 @@ public interface ISerialNumberService
         string sn,
         string? remark = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>生产统计快照（大屏 / 报表用）。</summary>
+    Task<Result<ProductionStatsDto>> GetStatsAsync(
+        DateTime? from = null,
+        DateTime? to = null,
+        CancellationToken cancellationToken = default);
 }

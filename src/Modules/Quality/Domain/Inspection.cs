@@ -62,6 +62,7 @@ public class Inspection : Entity
         string? sn = null,
         Guid? materialId = null,
         string? materialCode = null,
+        string? lotNumber = null,
         string? productCode = null,
         string? aqlLevel = null,
         int acceptedLimit = 0,
@@ -76,6 +77,7 @@ public class Inspection : Entity
         Sn = sn?.Trim();
         MaterialId = materialId;
         MaterialCode = materialCode;
+        LotNumber = lotNumber?.Trim();
         ProductCode = productCode;
         AqlLevel = aqlLevel;
         AcceptedLimit = acceptedLimit;
@@ -100,6 +102,9 @@ public class Inspection : Entity
     public Guid? MaterialId { get; private set; }
 
     public string? MaterialCode { get; private set; }
+
+    /// <summary>关联的来料批次号（IQC 填写，用于上游谱系追溯）。</summary>
+    public string? LotNumber { get; private set; }
 
     public string? ProductCode { get; private set; }
 

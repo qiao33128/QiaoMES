@@ -48,5 +48,11 @@ public interface ISerialNumberRepository
     /// <summary>显式持久化过站记录（EF 不会把导航集合中的新实体判为新增）。</summary>
     void AddTracking(WipTracking tracking);
 
+    /// <summary>按状态统计 SN 数量（指标统计用；from / to 按创建时间过滤）。</summary>
+    Task<IReadOnlyList<(SerialNumberStatus Status, int Count)>> CountByStatusAsync(
+        DateTime? from = null,
+        DateTime? to = null,
+        CancellationToken cancellationToken = default);
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

@@ -99,3 +99,47 @@ export const DispositionStatusMap = {
   2: { label: '待复检', type: 'primary' },
   3: { label: '已关闭', type: 'success' },
 }
+
+/** 来料批次与批次谱系 */
+export const materialLotApi = {
+  list(params) {
+    return http.get('/quality/material-lots', { params })
+  },
+  getById(id) {
+    return http.get(`/quality/material-lots/${id}`)
+  },
+  getByLotNumber(lotNumber) {
+    return http.get(`/quality/material-lots/by-lot-number/${encodeURIComponent(lotNumber)}`)
+  },
+  create(data) {
+    return http.post('/quality/material-lots', data)
+  },
+  /** 登记 IQC 结论（决定批次能否投产） */
+  inspect(id, data) {
+    return http.post(`/quality/material-lots/${id}/inspect`, data)
+  },
+  setFrozen(id, data) {
+    return http.post(`/quality/material-lots/${id}/freeze`, data)
+  },
+  /** SN 绑定来料批次（批量、幂等） */
+  bind(items) {
+    return http.post('/quality/material-consumptions', { items })
+  },
+  /** 正向：某 SN 用了哪些批次 */
+  consumptionsBySn(sn) {
+    return http.get(`/quality/material-consumptions/by-sn/${encodeURIComponent(sn)}`)
+  },
+  /** 反向：某批次流向了哪些 SN */
+  traceByLot(lotNumber, take = 200) {
+    return http.get(`/quality/material-consumptions/by-lot/${encodeURIComponent(lotNumber)}`, { params: { take } })
+  },
+}
+
+/** 来料批次状态：0 待检 / 1 合格可用 / 2 不合格 / 3 冻结 / 4 已耗尽 */
+export const MaterialLotStatusMap = {
+  0: { label: '待检', type: 'info' },
+  1: { label: '合格可用', type: 'success' },
+  2: { label: '不合格', type: 'danger' },
+  3: { label: '冻结', type: 'warning' },
+  4: { label: '已耗尽', type: 'info' },
+}

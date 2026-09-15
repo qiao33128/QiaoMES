@@ -110,6 +110,35 @@ public class InspectionRepository(QualityDbContext db) : IInspectionRepository
         return samples.OrderBy(s => s.Timestamp).ToList();
     }
 
+    public async Task<IReadOnlyList<(InspectionStatus Status, int Count, int DefectQuantity)>> CountByStatusAsync(
+        DateTime? from = null,
+        DateTime? to = null,
+        CancellationToken cancellationToken = default)
+    {
+        IQueryable<Inspection> source = db.Inspections.AsNoTracking();
+
+        if (from is not null)
+        {
+            source = source.Where(i => i.CreatedAt >= from);
+        }
+        if (to is not null)
+        {
+            source = source.Where(i => i.CreatedAt <= to);
+        }
+
+        var grouped = await source
+            .GroupBy(i => i.Status)
+            .Select(group => new
+            {
+                Status = group.Key,
+                Count = group.Count(),
+                DefectQuantity = group.Sum(i => i.DefectQuantity),
+            })
+            .ToListAsync(cancellationToken);
+
+        return grouped.Select(x => (x.Status, x.Count, x.DefectQuantity)).ToList();
+    }
+
     public void Add(Inspection inspection) => db.Inspections.Add(inspection);
 
     public void AddItem(InspectionItem item) => db.InspectionItems.Add(item);

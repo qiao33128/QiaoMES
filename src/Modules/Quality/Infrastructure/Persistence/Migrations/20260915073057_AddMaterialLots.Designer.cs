@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using QiaoMES.Quality.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using QiaoMES.Quality.Infrastructure.Persistence;
 namespace QiaoMES.Quality.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(QualityDbContext))]
-    partial class QualityDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260915073057_AddMaterialLots")]
+    partial class AddMaterialLots
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
