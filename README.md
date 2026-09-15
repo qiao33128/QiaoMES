@@ -29,7 +29,9 @@ QiaoMES/
 │   ├── Modules/                # 业务模块（模块化单体）
 │   │   ├── Identity/           # 认证、用户、角色与权限
 │   │   │   └── {Domain, Application, Infrastructure, Api}
-│   │   └── Production/         # 生产（工单、报工）
+│   │   ├── Production/         # 生产（工单、报工）
+│   │   │   └── {Domain, Application, Infrastructure, Api}
+│   │   └── MasterData/         # 主数据（产品、物料、工序、工作中心）
 │   │       └── {Domain, Application, Infrastructure, Api}
 │   └── QiaoMES.Api/            # 主机（组合所有模块）
 ├── tests/
@@ -128,6 +130,7 @@ dotnet ef migrations add <名称> \
 - [x] RBAC 角色权限：权限目录、角色-权限配置、用户角色分配、启用/停用
 - [x] 权限变更**即时生效**（服务端每次请求按用户查库判定权限，带短缓存与代次失效）
 - [x] 统一错误响应（ProblemDetails + 业务错误码 + TraceId）
+- [x] 主数据管理：产品 / 物料 / 工序 / 工作中心（编码唯一、关键字查询、启停、权限约束）
 - [x] 工单管理（创建、查询、编辑），查询条件全部下推到数据库
 - [x] 工单状态流转（草稿 → 已下达 → 生产中 → 已完成 / 已取消）
 - [x] 生产报工（自动完成工单）

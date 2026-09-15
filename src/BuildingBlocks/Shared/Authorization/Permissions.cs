@@ -21,6 +21,13 @@ public static class Permissions
         public const string Cancel = "workorders:cancel";
     }
 
+    /// <summary>主数据（产品 / 物料 / 工序 / 工作中心 / 工艺路线）权限。</summary>
+    public static class MasterData
+    {
+        public const string Read = "masterdata:read";
+        public const string Manage = "masterdata:manage";
+    }
+
     /// <summary>用户管理权限。</summary>
     public static class Users
     {

@@ -22,6 +22,8 @@ public static class PermissionCatalog
         new("工单", Permissions.WorkOrders.Report, "生产报工"),
         new("工单", Permissions.WorkOrders.Complete, "完成工单"),
         new("工单", Permissions.WorkOrders.Cancel, "取消工单"),
+        new("主数据", Permissions.MasterData.Read, "查看主数据"),
+        new("主数据", Permissions.MasterData.Manage, "维护主数据"),
         new("用户", Permissions.Users.Read, "查看用户"),
         new("用户", Permissions.Users.Manage, "管理用户"),
         new("角色", Permissions.Roles.Read, "查看角色"),

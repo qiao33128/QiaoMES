@@ -28,6 +28,8 @@ public static class IdentityDbSeeder
                 Permissions.WorkOrders.Report,
                 Permissions.WorkOrders.Complete,
                 Permissions.WorkOrders.Cancel,
+                Permissions.MasterData.Read,
+                Permissions.MasterData.Manage,
                 Permissions.Users.Read,
                 Permissions.Roles.Read,
             ]
@@ -39,6 +41,7 @@ public static class IdentityDbSeeder
                 Permissions.WorkOrders.Read,
                 Permissions.WorkOrders.Start,
                 Permissions.WorkOrders.Report,
+                Permissions.MasterData.Read,
             ]
         ),
     };

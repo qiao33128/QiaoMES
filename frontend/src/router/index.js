@@ -23,6 +23,12 @@ const routes = [
         meta: { title: '工单管理', permission: 'workorders:read' },
       },
       {
+        path: 'master-data',
+        name: 'master-data',
+        component: () => import('@/views/masterdata/MasterDataView.vue'),
+        meta: { title: '主数据维护', permission: 'masterdata:read' },
+      },
+      {
         path: 'dashboard',
         name: 'dashboard',
         component: () => import('@/views/dashboard/DashboardView.vue'),

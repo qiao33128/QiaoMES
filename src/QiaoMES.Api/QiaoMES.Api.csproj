@@ -3,8 +3,10 @@
   <ItemGroup>
     <ProjectReference Include="..\Modules\Identity\Api\QiaoMES.Identity.Api.csproj" />
     <ProjectReference Include="..\Modules\Production\Api\QiaoMES.Production.Api.csproj" />
+    <ProjectReference Include="..\Modules\MasterData\Api\QiaoMES.MasterData.Api.csproj" />
     <ProjectReference Include="..\Modules\Identity\Infrastructure\QiaoMES.Identity.Infrastructure.csproj" />
     <ProjectReference Include="..\Modules\Production\Infrastructure\QiaoMES.Production.Infrastructure.csproj" />
+    <ProjectReference Include="..\Modules\MasterData\Infrastructure\QiaoMES.MasterData.Infrastructure.csproj" />
     <ProjectReference Include="..\BuildingBlocks\Infrastructure\QiaoMES.Infrastructure\QiaoMES.Infrastructure.csproj" />
     <ProjectReference Include="..\BuildingBlocks\Shared\QiaoMES.Shared.csproj" />
   </ItemGroup>

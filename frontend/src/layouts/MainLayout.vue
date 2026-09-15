@@ -18,9 +18,21 @@
           <el-icon><Odometer /></el-icon>
           <template #title>生产看板</template>
         </el-menu-item>
-        <el-menu-item index="/work-orders">
+        <el-menu-item v-if="authStore.hasPermission('workorders:read')" index="/work-orders">
           <el-icon><Document /></el-icon>
           <template #title>工单管理</template>
+        </el-menu-item>
+        <el-menu-item v-if="authStore.hasPermission('masterdata:read')" index="/master-data">
+          <el-icon><Grid /></el-icon>
+          <template #title>主数据维护</template>
+        </el-menu-item>
+        <el-menu-item v-if="authStore.hasPermission('users:read')" index="/users">
+          <el-icon><User /></el-icon>
+          <template #title>用户管理</template>
+        </el-menu-item>
+        <el-menu-item v-if="authStore.hasPermission('roles:read')" index="/roles">
+          <el-icon><Key /></el-icon>
+          <template #title>角色与权限</template>
         </el-menu-item>
       </el-menu>
     </el-aside>
@@ -65,6 +77,7 @@ import {
   Monitor,
   Odometer,
   Document,
+  Grid,
   Key,
   User,
   UserFilled,
