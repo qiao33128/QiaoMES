@@ -22,13 +22,15 @@ http.interceptors.response.use(
   (error) => {
     const status = error.response?.status
     const data = error.response?.data || {}
-    // 兼容多种后端错误字段：message / description / detail / Error.Description
-    const message = data.message || data.description || data.detail || data.Error?.Description
+    // 后端统一返回 ProblemDetails：{ title, status, code, traceId, detail }
+    const message = data.title || data.message || data.description || data.detail || data.Error?.Description
     if (status === 401) {
       localStorage.removeItem('access_token')
       localStorage.removeItem('user')
       ElMessage.error('登录已过期，请重新登录')
       router.push({ name: 'login' })
+    } else if (status === 403) {
+      ElMessage.error(message || '当前账号没有执行该操作的权限')
     } else {
       ElMessage.error(message || error.message || '请求失败')
     }

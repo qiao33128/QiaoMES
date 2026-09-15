@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+jobs:
+  backend:
+    name: 后端构建与测试
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: qiaomes
+          POSTGRES_PASSWORD: qiaomes_dev
+          POSTGRES_DB: qiaomes
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U qiaomes -d qiaomes"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: 还原依赖
+        run: dotnet restore src/QiaoMES.slnx
+
+      - name: 编译（警告视为错误）
+        run: dotnet build src/QiaoMES.slnx --no-restore --configuration Release
+
+      - name: 运行测试
+        run: >
+          dotnet test src/QiaoMES.slnx
+          --no-build
+          --configuration Release
+          --logger "console;verbosity=normal"
+        env:
+          # 集成测试会真实启动 HTTP 管道并跑迁移，这里指向 CI 的 postgres 服务
+          ConnectionStrings__DefaultDb: Host=localhost;Port=5432;Database=qiaomes;Username=qiaomes;Password=qiaomes_dev
+
+  frontend:
+    name: 前端构建
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: 安装依赖
+        working-directory: frontend
+        run: npm ci
+
+      - name: 构建
+        working-directory: frontend
+        run: npm run build

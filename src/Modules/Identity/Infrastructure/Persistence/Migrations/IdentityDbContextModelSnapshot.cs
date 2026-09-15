@@ -50,6 +50,31 @@ namespace QiaoMES.Identity.Infrastructure.Persistence.Migrations
                     b.ToTable("roles", "identity");
                 });
 
+            modelBuilder.Entity("QiaoMES.Identity.Domain.RolePermission", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Permission")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("RoleId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RoleId", "Permission")
+                        .IsUnique();
+
+                    b.ToTable("role_permissions", "identity");
+                });
+
             modelBuilder.Entity("QiaoMES.Identity.Domain.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -120,6 +145,15 @@ namespace QiaoMES.Identity.Infrastructure.Persistence.Migrations
                     b.ToTable("user_roles", "identity");
                 });
 
+            modelBuilder.Entity("QiaoMES.Identity.Domain.RolePermission", b =>
+                {
+                    b.HasOne("QiaoMES.Identity.Domain.Role", null)
+                        .WithMany("Permissions")
+                        .HasForeignKey("RoleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("QiaoMES.Identity.Domain.UserRole", b =>
                 {
                     b.HasOne("QiaoMES.Identity.Domain.Role", null)
@@ -137,6 +171,8 @@ namespace QiaoMES.Identity.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("QiaoMES.Identity.Domain.Role", b =>
                 {
+                    b.Navigation("Permissions");
+
                     b.Navigation("Users");
                 });
 

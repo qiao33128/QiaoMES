@@ -6,20 +6,27 @@ namespace QiaoMES.Production.Application;
 
 public class WorkOrderService(
     IWorkOrderRepository repository,
-    IWorkOrderNotifier notifier) : IWorkOrderService
+    IWorkOrderNumberGenerator numberGenerator,
+    IWorkOrderNotifier notifier,
+    IPostCommitActions postCommit) : IWorkOrderService
 {
     public async Task<Result<WorkOrderDto>> CreateAsync(CreateWorkOrderRequest request, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(request.ProductCode))
         {
-            return Result.Failure<WorkOrderDto>(new Error("WorkOrder.InvalidInput", "产品编码不能为空"));
+            return Result.Failure<WorkOrderDto>(Error.Validation("WorkOrder.InvalidInput", "产品编码不能为空"));
+        }
+        if (string.IsNullOrWhiteSpace(request.ProductName))
+        {
+            return Result.Failure<WorkOrderDto>(Error.Validation("WorkOrder.InvalidInput", "产品名称不能为空"));
         }
         if (request.PlannedQuantity <= 0)
         {
-            return Result.Failure<WorkOrderDto>(new Error("WorkOrder.InvalidQuantity", "计划数量必须大于 0"));
+            return Result.Failure<WorkOrderDto>(Error.Validation("WorkOrder.InvalidQuantity", "计划数量必须大于 0"));
         }
 
-        var orderNumber = await GenerateOrderNumberAsync(cancellationToken);
+        // 单号由数据库原子生成，并发安全
+        var orderNumber = await numberGenerator.NextAsync(DateTime.Now, cancellationToken);
         var workOrder = new WorkOrder(
             orderNumber,
             request.ProductCode.Trim(),
@@ -32,8 +39,9 @@ public class WorkOrderService(
 
         repository.Add(workOrder);
         await repository.SaveChangesAsync(cancellationToken);
+
         var dto = ToDto(workOrder);
-        await notifier.NotifyWorkOrderChangedAsync(dto, "created", cancellationToken);
+        EnqueueNotification(dto, "created");
         return Result.Success(dto);
     }
 
@@ -41,43 +49,29 @@ public class WorkOrderService(
     {
         var workOrder = await repository.GetByIdAsync(id, cancellationToken);
         return workOrder is null
-            ? Result.Failure<WorkOrderDto>(new Error("WorkOrder.NotFound", "工单不存在"))
+            ? Result.Failure<WorkOrderDto>(Error.NotFound("WorkOrder.NotFound", "工单不存在"))
             : Result.Success(ToDto(workOrder));
     }
 
     public async Task<Result<PagedResult<WorkOrderDto>>> GetListAsync(
         PaginationRequest pagination, WorkOrderStatus? status, string? keyword, CancellationToken cancellationToken = default)
     {
-        var all = await repository.GetAllAsync(cancellationToken);
-
-        IEnumerable<WorkOrder> query = all;
-        if (status is not null)
+        var query = new WorkOrderQuery
         {
-            query = query.Where(w => w.Status == status);
-        }
-        if (!string.IsNullOrWhiteSpace(keyword))
-        {
-            var k = keyword.Trim();
-            query = query.Where(w =>
-                w.OrderNumber.Contains(k, StringComparison.OrdinalIgnoreCase) ||
-                w.ProductCode.Contains(k, StringComparison.OrdinalIgnoreCase) ||
-                w.ProductName.Contains(k, StringComparison.OrdinalIgnoreCase));
-        }
+            Status = status,
+            Keyword = keyword,
+            Page = pagination.Page,
+            PageSize = pagination.PageSize,
+        };
 
-        var ordered = query.OrderByDescending(w => w.CreatedAt).ToList();
-        var total = ordered.Count;
-        var items = ordered
-            .Skip((pagination.Page - 1) * pagination.PageSize)
-            .Take(pagination.PageSize)
-            .Select(ToDto)
-            .ToList();
+        var (items, totalCount) = await repository.QueryAsync(query, cancellationToken);
 
         return Result.Success(new PagedResult<WorkOrderDto>
         {
-            Items = items,
-            Page = pagination.Page,
-            PageSize = pagination.PageSize,
-            TotalCount = total,
+            Items = items.Select(ToDto).ToList(),
+            Page = query.NormalizedPage,
+            PageSize = query.NormalizedPageSize,
+            TotalCount = totalCount,
         });
     }
 
@@ -86,24 +80,23 @@ public class WorkOrderService(
         var workOrder = await repository.GetByIdAsync(id, cancellationToken);
         if (workOrder is null)
         {
-            return Result.Failure<WorkOrderDto>(new Error("WorkOrder.NotFound", "工单不存在"));
+            return Result.Failure<WorkOrderDto>(Error.NotFound("WorkOrder.NotFound", "工单不存在"));
         }
         if (workOrder.Status != WorkOrderStatus.Draft)
         {
-            return Result.Failure<WorkOrderDto>(new Error("WorkOrder.NotEditable", "只有草稿状态的工单才能编辑"));
+            return Result.Failure<WorkOrderDto>(Error.Conflict("WorkOrder.NotEditable", "只有草稿状态的工单才能编辑"));
         }
         if (request.PlannedQuantity <= 0)
         {
-            return Result.Failure<WorkOrderDto>(new Error("WorkOrder.InvalidQuantity", "计划数量必须大于 0"));
+            return Result.Failure<WorkOrderDto>(Error.Validation("WorkOrder.InvalidQuantity", "计划数量必须大于 0"));
         }
 
         workOrder.UpdatePlan(request.ProductName.Trim(), request.PlannedQuantity,
             request.PlannedStart, request.PlannedEnd, request.WorkCenter, request.Remark);
-        repository.Update(workOrder);
         await repository.SaveChangesAsync(cancellationToken);
 
         var dto = ToDto(workOrder);
-        await notifier.NotifyWorkOrderChangedAsync(dto, "updated", cancellationToken);
+        EnqueueNotification(dto, "updated");
         return Result.Success(dto);
     }
 
@@ -118,7 +111,7 @@ public class WorkOrderService(
         var workOrder = await repository.GetByIdAsync(id, cancellationToken);
         if (workOrder is null)
         {
-            return Result.Failure<WorkOrderDto>(new Error("WorkOrder.NotFound", "工单不存在"));
+            return Result.Failure<WorkOrderDto>(Error.NotFound("WorkOrder.NotFound", "工单不存在"));
         }
 
         var result = workOrder.Report(request.Quantity);
@@ -127,11 +120,12 @@ public class WorkOrderService(
             return Result.Failure<WorkOrderDto>(result.Error);
         }
 
+        // 报工记录是新实体，必须显式 Add；工单本身已被跟踪，直接 SaveChanges 即可
         repository.AddReport(workOrder.CreateReport(request.Quantity));
-        repository.Update(workOrder);
         await repository.SaveChangesAsync(cancellationToken);
+
         var dto = ToDto(workOrder);
-        await notifier.NotifyWorkOrderChangedAsync(dto, "reported", cancellationToken);
+        EnqueueNotification(dto, "reported");
         return Result.Success(dto);
     }
 
@@ -147,7 +141,7 @@ public class WorkOrderService(
         var workOrder = await repository.GetByIdAsync(id, cancellationToken);
         if (workOrder is null)
         {
-            return Result.Failure<WorkOrderDto>(new Error("WorkOrder.NotFound", "工单不存在"));
+            return Result.Failure<WorkOrderDto>(Error.NotFound("WorkOrder.NotFound", "工单不存在"));
         }
 
         var result = transition(workOrder);
@@ -156,27 +150,18 @@ public class WorkOrderService(
             return Result.Failure<WorkOrderDto>(result.Error);
         }
 
-        repository.Update(workOrder);
         await repository.SaveChangesAsync(cancellationToken);
+
         var dto = ToDto(workOrder);
-        await notifier.NotifyWorkOrderChangedAsync(dto, action, cancellationToken);
+        EnqueueNotification(dto, action);
         return Result.Success(dto);
     }
 
-    private async Task<string> GenerateOrderNumberAsync(CancellationToken cancellationToken)
-    {
-        var count = await repository.CountAsync(cancellationToken);
-        var date = DateTime.Now.ToString("yyyyMMdd");
-        // 预留查询次数避免并发冲突
-        string orderNumber;
-        do
-        {
-            orderNumber = $"WO-{date}-{count + 1:D4}";
-            count++;
-        }
-        while (await repository.IsOrderNumberTakenAsync(orderNumber, cancellationToken));
-        return orderNumber;
-    }
+    /// <summary>
+    /// 实时通知延迟到事务提交成功之后执行，避免「看板已刷新、但数据被回滚」。
+    /// </summary>
+    private void EnqueueNotification(WorkOrderDto workOrder, string action)
+        => postCommit.Enqueue(token => notifier.NotifyWorkOrderChangedAsync(workOrder, action, token));
 
     private static WorkOrderDto ToDto(WorkOrder w) => new(
         w.Id, w.OrderNumber, w.ProductCode, w.ProductName,

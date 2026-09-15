@@ -31,7 +31,72 @@ public class User : Entity
     private readonly List<UserRole> _roles = [];
     public IReadOnlyCollection<UserRole> Roles => _roles.AsReadOnly();
 
-    public void AddRole(Role role) => _roles.Add(new UserRole(Id, role.Id));
+    /// <summary>当前生效的角色 Id。</summary>
+    public IReadOnlyList<Guid> RoleIds => _roles
+        .Where(r => !r.IsDeleted)
+        .Select(r => r.RoleId)
+        .Distinct()
+        .ToList();
+
+    public UserRole? AddRole(Role role) => AddRole(role.Id);
+
+    /// <summary>
+    /// 授予角色（幂等；已软删除的关联会被恢复）。
+    /// </summary>
+    /// <returns>
+    /// 新创建的关联；调用方**必须**把它交给仓储显式持久化。
+    /// 已存在或已恢复的关联返回 <c>null</c>。
+    /// </returns>
+    public UserRole? AddRole(Guid roleId)
+    {
+        if (_roles.Any(r => r.RoleId == roleId && !r.IsDeleted))
+        {
+            return null;
+        }
+
+        var removed = _roles.FirstOrDefault(r => r.RoleId == roleId && r.IsDeleted);
+        if (removed is not null)
+        {
+            removed.Restore();
+            return null;
+        }
+
+        var created = new UserRole(Id, roleId);
+        _roles.Add(created);
+        return created;
+    }
+
+    public void RemoveRole(Guid roleId)
+    {
+        var existing = _roles.FirstOrDefault(r => r.RoleId == roleId && !r.IsDeleted);
+        existing?.Delete();
+    }
+
+    /// <summary>
+    /// 用给定集合整体替换角色（多余移除、缺失补上）。
+    /// </summary>
+    /// <returns>新增的关联列表，调用方需显式持久化。</returns>
+    public IReadOnlyList<UserRole> ReplaceRoles(IEnumerable<Guid> roleIds)
+    {
+        var target = roleIds.Distinct().ToHashSet();
+
+        foreach (var roleId in RoleIds.Where(id => !target.Contains(id)))
+        {
+            RemoveRole(roleId);
+        }
+
+        var added = new List<UserRole>();
+        foreach (var roleId in target)
+        {
+            var created = AddRole(roleId);
+            if (created is not null)
+            {
+                added.Add(created);
+            }
+        }
+
+        return added;
+    }
 
     public void UpdatePassword(string passwordHash) => PasswordHash = passwordHash;
 

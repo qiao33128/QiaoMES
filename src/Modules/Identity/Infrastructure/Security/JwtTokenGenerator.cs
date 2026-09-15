@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using QiaoMES.Identity.Application;
 using QiaoMES.Identity.Domain;
+using QiaoMES.Shared.Authorization;
 
 namespace QiaoMES.Identity.Infrastructure.Security;
 
@@ -12,7 +13,7 @@ public class JwtTokenGenerator(IOptions<JwtOptions> options) : ITokenGenerator
 {
     private readonly JwtOptions _options = options.Value;
 
-    public string GenerateAccessToken(User user, IReadOnlyList<string> roles)
+    public string GenerateAccessToken(User user, IReadOnlyList<string> roles, IReadOnlyList<string> permissions)
     {
         var claims = new List<Claim>
         {
@@ -23,6 +24,7 @@ public class JwtTokenGenerator(IOptions<JwtOptions> options) : ITokenGenerator
         };
 
         claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
+        claims.AddRange(permissions.Select(permission => new Claim(QiaoMESClaimTypes.Permission, permission)));
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_options.SecretKey));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);

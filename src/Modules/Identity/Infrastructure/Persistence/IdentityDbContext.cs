@@ -11,6 +11,7 @@ public class IdentityDbContext(DbContextOptions<IdentityDbContext> options) : Db
     public DbSet<User> Users => Set<User>();
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<UserRole> UserRoles => Set<UserRole>();
+    public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -32,11 +33,20 @@ public class IdentityDbContext(DbContextOptions<IdentityDbContext> options) : Db
         role.Property(r => r.Name).HasMaxLength(50).IsRequired();
         role.Property(r => r.Description).HasMaxLength(255);
         role.HasIndex(r => r.Name).IsUnique();
+        role.HasQueryFilter(r => !r.IsDeleted);
 
         var userRole = modelBuilder.Entity<UserRole>();
         userRole.ToTable("user_roles");
         userRole.HasKey(ur => ur.Id);
         userRole.HasIndex(ur => new { ur.UserId, ur.RoleId }).IsUnique();
+        userRole.HasQueryFilter(ur => !ur.IsDeleted);
+
+        var rolePermission = modelBuilder.Entity<RolePermission>();
+        rolePermission.ToTable("role_permissions");
+        rolePermission.HasKey(rp => rp.Id);
+        rolePermission.Property(rp => rp.Permission).HasMaxLength(100).IsRequired();
+        rolePermission.HasIndex(rp => new { rp.RoleId, rp.Permission }).IsUnique();
+        rolePermission.HasQueryFilter(rp => !rp.IsDeleted);
 
         user.HasMany(u => u.Roles)
             .WithOne()
@@ -44,6 +54,9 @@ public class IdentityDbContext(DbContextOptions<IdentityDbContext> options) : Db
         role.HasMany(r => r.Users)
             .WithOne()
             .HasForeignKey(ur => ur.RoleId);
+        role.HasMany(r => r.Permissions)
+            .WithOne()
+            .HasForeignKey(rp => rp.RoleId);
 
         base.OnModelCreating(modelBuilder);
     }

@@ -65,6 +65,8 @@ import {
   Monitor,
   Odometer,
   Document,
+  Key,
+  User,
   UserFilled,
   Fold,
   Expand,

@@ -13,10 +13,11 @@ public record TokenResponse(
     DateTime ExpiresAt,
     UserDto User);
 
-/// <summary>用户信息。</summary>
+/// <summary>当前用户信息。</summary>
 public record UserDto(
     Guid Id,
     string Username,
     string DisplayName,
     string? Email,
-    IReadOnlyList<string> Roles);
+    IReadOnlyList<string> Roles,
+    IReadOnlyList<string> Permissions);

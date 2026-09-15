@@ -20,13 +20,31 @@ const routes = [
         path: 'work-orders',
         name: 'work-orders',
         component: () => import('@/views/workorder/WorkOrderList.vue'),
-        meta: { title: '工单管理' },
+        meta: { title: '工单管理', permission: 'workorders:read' },
       },
       {
         path: 'dashboard',
         name: 'dashboard',
         component: () => import('@/views/dashboard/DashboardView.vue'),
         meta: { title: '生产看板' },
+      },
+      {
+        path: 'roles',
+        name: 'roles',
+        component: () => import('@/views/admin/RoleList.vue'),
+        meta: { title: '角色与权限', permission: 'roles:read' },
+      },
+      {
+        path: 'users',
+        name: 'users',
+        component: () => import('@/views/admin/UserList.vue'),
+        meta: { title: '用户管理', permission: 'users:read' },
+      },
+      {
+        path: 'forbidden',
+        name: 'forbidden',
+        component: () => import('@/views/ForbiddenView.vue'),
+        meta: { title: '无访问权限' },
       },
     ],
   },
@@ -37,7 +55,7 @@ const router = createRouter({
   routes,
 })
 
-// 路由守卫：未登录跳转到登录页
+// 路由守卫：未登录跳转登录页；有权限要求的页面按权限拦截
 router.beforeEach((to) => {
   const auth = useAuthStore()
   if (!to.meta.public && !auth.isAuthenticated) {
@@ -45,6 +63,9 @@ router.beforeEach((to) => {
   }
   if (to.meta.public && auth.isAuthenticated) {
     return { path: '/' }
+  }
+  if (to.meta.permission && !auth.hasPermission(to.meta.permission)) {
+    return { name: 'forbidden' }
   }
   document.title = to.meta.title ? `${to.meta.title} - QiaoMES` : 'QiaoMES'
 })

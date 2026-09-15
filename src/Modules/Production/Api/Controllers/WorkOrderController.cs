@@ -1,82 +1,73 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using QiaoMES.Infrastructure.Authorization;
+using QiaoMES.Infrastructure.Http;
 using QiaoMES.Production.Application;
 using QiaoMES.Production.Application.Contracts;
 using QiaoMES.Production.Domain;
 using QiaoMES.Shared;
+using QiaoMES.Shared.Authorization;
 
 namespace QiaoMES.Production.Api.Controllers;
 
+/// <summary>
+/// 工单接口。每个动作都绑定到具体权限，而不只是「已登录」。
+/// </summary>
 [ApiController]
 [Route("api/work-orders")]
 [Authorize]
 public class WorkOrderController(IWorkOrderService service) : ControllerBase
 {
     [HttpGet]
-    public async Task<ActionResult<PagedResult<WorkOrderDto>>> GetList(
+    [HasPermission(Permissions.WorkOrders.Read)]
+    public async Task<IActionResult> GetList(
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20,
+        [FromQuery] int pageSize = WorkOrderQuery.DefaultPageSize,
         [FromQuery] WorkOrderStatus? status = null,
         [FromQuery] string? keyword = null,
         CancellationToken cancellationToken = default)
     {
         var result = await service.GetListAsync(new PaginationRequest(page, pageSize), status, keyword, cancellationToken);
-        return result.IsSuccess ? Ok(result.Value) : BadRequest(result.Error);
+        return ApiResults.FromResult(result);
     }
 
     [HttpGet("{id:guid}")]
-    public async Task<ActionResult<WorkOrderDto>> GetById(Guid id, CancellationToken cancellationToken)
-    {
-        var result = await service.GetByIdAsync(id, cancellationToken);
-        return result.IsSuccess ? Ok(result.Value) : NotFound(result.Error);
-    }
+    [HasPermission(Permissions.WorkOrders.Read)]
+    public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
+        => ApiResults.FromResult(await service.GetByIdAsync(id, cancellationToken));
 
     [HttpPost]
-    public async Task<ActionResult<WorkOrderDto>> Create([FromBody] CreateWorkOrderRequest request, CancellationToken cancellationToken)
-    {
-        var result = await service.CreateAsync(request, cancellationToken);
-        return result.IsSuccess ? Ok(result.Value) : BadRequest(result.Error);
-    }
+    [HasPermission(Permissions.WorkOrders.Create)]
+    public async Task<IActionResult> Create([FromBody] CreateWorkOrderRequest request, CancellationToken cancellationToken)
+        => ApiResults.FromResult(await service.CreateAsync(request, cancellationToken));
 
     [HttpPut("{id:guid}")]
-    public async Task<ActionResult<WorkOrderDto>> Update(Guid id, [FromBody] UpdateWorkOrderRequest request, CancellationToken cancellationToken)
-    {
-        var result = await service.UpdateAsync(id, request, cancellationToken);
-        return result.IsSuccess ? Ok(result.Value) : BadRequest(result.Error);
-    }
+    [HasPermission(Permissions.WorkOrders.Update)]
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateWorkOrderRequest request, CancellationToken cancellationToken)
+        => ApiResults.FromResult(await service.UpdateAsync(id, request, cancellationToken));
 
     [HttpPost("{id:guid}/release")]
-    public async Task<ActionResult<WorkOrderDto>> Release(Guid id, CancellationToken cancellationToken)
-    {
-        var result = await service.ReleaseAsync(id, cancellationToken);
-        return result.IsSuccess ? Ok(result.Value) : BadRequest(result.Error);
-    }
+    [HasPermission(Permissions.WorkOrders.Release)]
+    public async Task<IActionResult> Release(Guid id, CancellationToken cancellationToken)
+        => ApiResults.FromResult(await service.ReleaseAsync(id, cancellationToken));
 
     [HttpPost("{id:guid}/start")]
-    public async Task<ActionResult<WorkOrderDto>> Start(Guid id, CancellationToken cancellationToken)
-    {
-        var result = await service.StartProductionAsync(id, cancellationToken);
-        return result.IsSuccess ? Ok(result.Value) : BadRequest(result.Error);
-    }
+    [HasPermission(Permissions.WorkOrders.Start)]
+    public async Task<IActionResult> Start(Guid id, CancellationToken cancellationToken)
+        => ApiResults.FromResult(await service.StartProductionAsync(id, cancellationToken));
 
     [HttpPost("{id:guid}/report")]
-    public async Task<ActionResult<WorkOrderDto>> Report(Guid id, [FromBody] ReportRequest request, CancellationToken cancellationToken)
-    {
-        var result = await service.ReportAsync(id, request, cancellationToken);
-        return result.IsSuccess ? Ok(result.Value) : BadRequest(result.Error);
-    }
+    [HasPermission(Permissions.WorkOrders.Report)]
+    public async Task<IActionResult> Report(Guid id, [FromBody] ReportRequest request, CancellationToken cancellationToken)
+        => ApiResults.FromResult(await service.ReportAsync(id, request, cancellationToken));
 
     [HttpPost("{id:guid}/complete")]
-    public async Task<ActionResult<WorkOrderDto>> Complete(Guid id, CancellationToken cancellationToken)
-    {
-        var result = await service.CompleteAsync(id, cancellationToken);
-        return result.IsSuccess ? Ok(result.Value) : BadRequest(result.Error);
-    }
+    [HasPermission(Permissions.WorkOrders.Complete)]
+    public async Task<IActionResult> Complete(Guid id, CancellationToken cancellationToken)
+        => ApiResults.FromResult(await service.CompleteAsync(id, cancellationToken));
 
     [HttpPost("{id:guid}/cancel")]
-    public async Task<ActionResult<WorkOrderDto>> Cancel(Guid id, CancellationToken cancellationToken)
-    {
-        var result = await service.CancelAsync(id, cancellationToken);
-        return result.IsSuccess ? Ok(result.Value) : BadRequest(result.Error);
-    }
+    [HasPermission(Permissions.WorkOrders.Cancel)]
+    public async Task<IActionResult> Cancel(Guid id, CancellationToken cancellationToken)
+        => ApiResults.FromResult(await service.CancelAsync(id, cancellationToken));
 }

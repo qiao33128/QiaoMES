@@ -33,9 +33,9 @@ services:
         condition: service_healthy
     environment:
       ASPNETCORE_ENVIRONMENT: Production
-      # 数据库连接（服务名 postgres 代替 localhost）
-      ConnectionStrings__IdentityDb: Host=postgres;Port=5432;Database=qiaomes;Username=qiaomes;Password=qiaomes_dev
-      ConnectionStrings__ProductionDb: Host=postgres;Port=5432;Database=qiaomes;Username=qiaomes;Password=qiaomes_dev
+      # 统一数据库连接（服务名 postgres 代替 localhost）
+      # 全部模块共用同一连接，才能把跨模块写入放进同一个事务
+      ConnectionStrings__DefaultDb: Host=postgres;Port=5432;Database=qiaomes;Username=qiaomes;Password=qiaomes_dev
       # JWT 配置（生产环境请务必修改 SecretKey）
       Jwt__SecretKey: ${JWT_SECRET_KEY:-QiaoMES_Prod_Secret_Change_Me_At_Least_32_Chars_0123456789}
       Jwt__Issuer: QiaoMES

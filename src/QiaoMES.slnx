@@ -34,4 +34,8 @@
     <Project Path="Modules/Production/Infrastructure/QiaoMES.Production.Infrastructure.csproj" />
   </Folder>
   <Project Path="QiaoMES.Api/QiaoMES.Api.csproj" />
+  <Folder Name="/tests/">
+    <Project Path="../tests/QiaoMES.Api.Tests/QiaoMES.Api.Tests.csproj" />
+    <Project Path="../tests/QiaoMES.Domain.Tests/QiaoMES.Domain.Tests.csproj" />
+  </Folder>
 </Solution>

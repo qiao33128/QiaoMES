@@ -106,7 +106,28 @@ namespace QiaoMES.Production.Infrastructure.Persistence.Migrations
                     b.HasIndex("OrderNumber")
                         .IsUnique();
 
+                    b.HasIndex("Status", "CreatedAt");
+
                     b.ToTable("work_orders", "production");
+                });
+
+            modelBuilder.Entity("QiaoMES.Production.Domain.WorkOrderDailySequence", b =>
+                {
+                    b.Property<DateOnly>("SequenceDate")
+                        .HasColumnType("date")
+                        .HasColumnName("sequence_date");
+
+                    b.Property<int>("LastValue")
+                        .HasColumnType("integer")
+                        .HasColumnName("last_value");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("SequenceDate");
+
+                    b.ToTable("work_order_daily_sequences", "production");
                 });
 
             modelBuilder.Entity("QiaoMES.Production.Domain.ProductionReport", b =>

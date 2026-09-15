@@ -53,7 +53,7 @@ public class WorkOrder : Entity
     {
         if (Status != WorkOrderStatus.Draft)
         {
-            return Result.Failure(new Error("WorkOrder.InvalidTransition", "只有草稿状态的工单才能下达"));
+            return Result.Failure(Error.Conflict("WorkOrder.InvalidTransition", "只有草稿状态的工单才能下达"));
         }
         Status = WorkOrderStatus.Released;
         return Result.Success();
@@ -64,7 +64,7 @@ public class WorkOrder : Entity
     {
         if (Status != WorkOrderStatus.Released)
         {
-            return Result.Failure(new Error("WorkOrder.InvalidTransition", "只有已下达状态的工单才能开始生产"));
+            return Result.Failure(Error.Conflict("WorkOrder.InvalidTransition", "只有已下达状态的工单才能开始生产"));
         }
         Status = WorkOrderStatus.InProgress;
         return Result.Success();
@@ -75,15 +75,15 @@ public class WorkOrder : Entity
     {
         if (quantity <= 0)
         {
-            return Result.Failure(new Error("WorkOrder.InvalidQuantity", "报工数量必须大于 0"));
+            return Result.Failure(Error.Validation("WorkOrder.InvalidQuantity", "报工数量必须大于 0"));
         }
         if (Status != WorkOrderStatus.InProgress)
         {
-            return Result.Failure(new Error("WorkOrder.InvalidTransition", "只有生产中的工单才能报工"));
+            return Result.Failure(Error.Conflict("WorkOrder.InvalidTransition", "只有生产中的工单才能报工"));
         }
         if (CompletedQuantity + quantity > PlannedQuantity)
         {
-            return Result.Failure(new Error("WorkOrder.OverProduction", "报工数量超出计划数量"));
+            return Result.Failure(Error.Validation("WorkOrder.OverProduction", "报工数量超出计划数量"));
         }
 
         CompletedQuantity += quantity;
@@ -108,7 +108,7 @@ public class WorkOrder : Entity
     {
         if (Status is not (WorkOrderStatus.InProgress or WorkOrderStatus.Released))
         {
-            return Result.Failure(new Error("WorkOrder.InvalidTransition", "当前状态无法完成工单"));
+            return Result.Failure(Error.Conflict("WorkOrder.InvalidTransition", "当前状态无法完成工单"));
         }
         Status = WorkOrderStatus.Completed;
         CompletedAt = DateTime.UtcNow;
@@ -120,7 +120,7 @@ public class WorkOrder : Entity
     {
         if (Status is WorkOrderStatus.Completed or WorkOrderStatus.Cancelled)
         {
-            return Result.Failure(new Error("WorkOrder.InvalidTransition", "已结束的工单无法取消"));
+            return Result.Failure(Error.Conflict("WorkOrder.InvalidTransition", "已结束的工单无法取消"));
         }
         Status = WorkOrderStatus.Cancelled;
         return Result.Success();

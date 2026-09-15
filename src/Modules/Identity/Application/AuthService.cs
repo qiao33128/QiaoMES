@@ -1,6 +1,7 @@
 using QiaoMES.Identity.Application.Contracts;
 using QiaoMES.Identity.Domain;
 using QiaoMES.Shared;
+using QiaoMES.Shared.Authorization;
 
 namespace QiaoMES.Identity.Application;
 
@@ -8,26 +9,30 @@ public class AuthService(
     IUserRepository userRepository,
     IRoleRepository roleRepository,
     IPasswordHasher passwordHasher,
-    ITokenGenerator tokenGenerator) : IAuthService
+    ITokenGenerator tokenGenerator,
+    IPermissionProvider permissionProvider) : IAuthService
 {
-    private const string DefaultRole = "operator";
+    private const string DefaultRole = BuiltInRoles.Operator;
 
     public async Task<Result<TokenResponse>> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password))
         {
-            return Result.Failure<TokenResponse>(new Error("Auth.InvalidInput", "用户名和密码不能为空"));
+            return Result.Failure<TokenResponse>(Error.Validation("Auth.InvalidInput", "用户名和密码不能为空"));
         }
 
         var user = await userRepository.GetByUsernameAsync(request.Username.Trim(), cancellationToken);
-        if (user is null || !user.IsActive)
+        if (user is null)
         {
-            return Result.Failure<TokenResponse>(new Error("Auth.InvalidCredentials", "用户名或密码错误"));
+            return Result.Failure<TokenResponse>(Error.Unauthorized("Auth.InvalidCredentials", "用户名或密码错误"));
         }
-
+        if (!user.IsActive)
+        {
+            return Result.Failure<TokenResponse>(Error.Forbidden("Auth.UserDisabled", "该账号已被停用，请联系管理员"));
+        }
         if (!passwordHasher.Verify(request.Password, user.PasswordHash))
         {
-            return Result.Failure<TokenResponse>(new Error("Auth.InvalidCredentials", "用户名或密码错误"));
+            return Result.Failure<TokenResponse>(Error.Unauthorized("Auth.InvalidCredentials", "用户名或密码错误"));
         }
 
         user.RecordLogin();
@@ -41,17 +46,17 @@ public class AuthService(
     {
         if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password))
         {
-            return Result.Failure<TokenResponse>(new Error("Auth.InvalidInput", "用户名和密码不能为空"));
+            return Result.Failure<TokenResponse>(Error.Validation("Auth.InvalidInput", "用户名和密码不能为空"));
         }
         if (request.Password.Length < 6)
         {
-            return Result.Failure<TokenResponse>(new Error("Auth.WeakPassword", "密码长度至少 6 位"));
+            return Result.Failure<TokenResponse>(Error.Validation("Auth.WeakPassword", "密码长度至少 6 位"));
         }
 
         var username = request.Username.Trim();
         if (await userRepository.IsUsernameTakenAsync(username, cancellationToken))
         {
-            return Result.Failure<TokenResponse>(new Error("Auth.UsernameTaken", "用户名已被占用"));
+            return Result.Failure<TokenResponse>(Error.Conflict("Auth.UsernameTaken", "用户名已被占用"));
         }
 
         var passwordHash = passwordHasher.Hash(request.Password);
@@ -60,10 +65,10 @@ public class AuthService(
         var defaultRole = await roleRepository.GetByNameAsync(DefaultRole, cancellationToken);
         if (defaultRole is null)
         {
-            defaultRole = new Role(DefaultRole, "普通操作员");
+            defaultRole = new Role(DefaultRole, "操作员");
             roleRepository.Add(defaultRole);
         }
-        user.AddRole(defaultRole);
+        user.AddRole(defaultRole.Id);
 
         userRepository.Add(user);
         await userRepository.SaveChangesAsync(cancellationToken);
@@ -75,41 +80,57 @@ public class AuthService(
         var user = await userRepository.GetByIdAsync(userId, cancellationToken);
         if (user is null)
         {
-            return Result.Failure<UserDto>(new Error("Auth.UserNotFound", "用户不存在"));
+            return Result.Failure<UserDto>(Error.NotFound("Auth.UserNotFound", "用户不存在"));
+        }
+        if (!user.IsActive)
+        {
+            return Result.Failure<UserDto>(Error.Forbidden("Auth.UserDisabled", "该账号已被停用"));
         }
 
         var roles = await ResolveRoleNamesAsync(user, cancellationToken);
-        return Result.Success(ToDto(user, roles));
+        var permissions = await ResolvePermissionsAsync(user.Id, cancellationToken);
+        return Result.Success(ToDto(user, roles, permissions));
     }
 
     private async Task<Result<TokenResponse>> BuildTokenResponseAsync(User user, CancellationToken cancellationToken)
     {
         var roles = await ResolveRoleNamesAsync(user, cancellationToken);
-        var token = tokenGenerator.GenerateAccessToken(user, roles);
+        var permissions = await ResolvePermissionsAsync(user.Id, cancellationToken);
+        var token = tokenGenerator.GenerateAccessToken(user, roles, permissions);
         var expiresAt = DateTime.UtcNow.AddHours(8);
 
         return Result.Success(new TokenResponse(
             token,
             "Bearer",
             expiresAt,
-            ToDto(user, roles)));
+            ToDto(user, roles, permissions)));
+    }
+
+    private async Task<IReadOnlyList<string>> ResolvePermissionsAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        var permissions = await permissionProvider.GetPermissionsAsync(userId, cancellationToken);
+        return permissions.OrderBy(p => p, StringComparer.Ordinal).ToList();
     }
 
     private async Task<IReadOnlyList<string>> ResolveRoleNamesAsync(User user, CancellationToken cancellationToken)
     {
-        if (user.Roles.Count == 0) return [];
+        var roleIds = user.RoleIds;
+        if (roleIds.Count == 0)
+        {
+            return [];
+        }
 
         var allRoles = await roleRepository.GetAllAsync(cancellationToken);
         var roleMap = allRoles.ToDictionary(r => r.Id, r => r.Name);
-        return user.Roles
-            .Where(ur => !ur.IsDeleted)
-            .Select(ur => roleMap.GetValueOrDefault(ur.RoleId, "operator"))
-            .Distinct()
+
+        return roleIds
+            .Where(roleMap.ContainsKey)
+            .Select(id => roleMap[id])
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(name => name, StringComparer.Ordinal)
             .ToList();
     }
 
-    private static UserDto ToDto(User user, IReadOnlyList<string> roles)
-    {
-        return new UserDto(user.Id, user.Username, user.DisplayName, user.Email, roles);
-    }
+    private static UserDto ToDto(User user, IReadOnlyList<string> roles, IReadOnlyList<string> permissions)
+        => new(user.Id, user.Username, user.DisplayName, user.Email, roles, permissions);
 }
