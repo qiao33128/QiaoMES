@@ -11,10 +11,26 @@ namespace QiaoMES.Api.Tests;
 /// 验证「一次请求内多个 DbContext 共享同一事务」这一关键约定：
 /// 任一方失败回滚时，双方的数据都不应落库。
 /// </summary>
-public class UnitOfWorkTransactionTests
+[Collection(ApiCollection.Name)]
+public class UnitOfWorkTransactionTests : IAsyncLifetime
 {
     private const string ConnectionString =
         "Host=localhost;Port=5432;Database=qiaomes;Username=qiaomes;Password=qiaomes_dev";
+
+    /// <summary>确保数据库结构就绪（CI 上可能是一个全新的空库）。</summary>
+    public async Task InitializeAsync()
+    {
+        await using var connection = new NpgsqlConnection(ConnectionString);
+        await using var identityDb = new IdentityDbContext(
+            new DbContextOptionsBuilder<IdentityDbContext>().UseNpgsql(connection).Options);
+        await using var productionDb = new ProductionDbContext(
+            new DbContextOptionsBuilder<ProductionDbContext>().UseNpgsql(connection).Options);
+
+        await identityDb.Database.MigrateAsync();
+        await productionDb.Database.MigrateAsync();
+    }
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public async Task 同一事务下跨模块写入_回滚后双方都不落库()
