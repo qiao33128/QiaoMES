@@ -31,6 +31,8 @@
           <el-button :icon="Refresh" @click="resetQuery">重置</el-button>
         </el-form-item>
         <el-form-item style="float: right">
+          <el-button v-if="csvResource" :icon="Download" @click="handleExport">导出 CSV</el-button>
+          <el-button v-if="csvResource" :icon="Upload" @click="handleImport">导入 CSV</el-button>
           <el-button type="primary" :icon="Plus" @click="openForm()">新建{{ config.title }}</el-button>
         </el-form-item>
       </el-form>
@@ -161,8 +163,8 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Refresh, Search } from '@element-plus/icons-vue'
-import { workCenterApi } from '@/api/masterdata'
+import { Download, Plus, Refresh, Search, Upload } from '@element-plus/icons-vue'
+import { exportCatalogCsv, importCatalogCsv, workCenterApi } from '@/api/masterdata'
 import { catalogConfigs } from './catalogConfig'
 import BomFormDialog from './BomFormDialog.vue'
 import RoutingFormDialog from './RoutingFormDialog.vue'
@@ -242,6 +244,52 @@ function handleTabChange() {
   if (activeKey.value === 'operations') {
     loadWorkCenters()
   }
+}
+
+const CSV_RESOURCES = {
+  products: 'products',
+  materials: 'materials',
+  operations: 'operations',
+  'work-centers': 'work-centers',
+}
+
+const csvResource = computed(() => CSV_RESOURCES[activeKey.value] || null)
+
+async function handleExport() {
+  if (!csvResource.value) return
+
+  const blob = await exportCatalogCsv(csvResource.value)
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `${csvResource.value}-${new Date().toISOString().slice(0, 10)}.csv`
+  link.click()
+  URL.revokeObjectURL(url)
+  ElMessage.success('导出已开始下载')
+}
+
+async function handleImport() {
+  if (!csvResource.value) return
+
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = '.csv,text/csv'
+  input.onchange = async () => {
+    const file = input.files?.[0]
+    if (!file) return
+
+    const result = await importCatalogCsv(csvResource.value, await file.text())
+    const summary = `新建 ${result.created} 条，更新 ${result.updated} 条，跳过 ${result.skipped} 条`
+
+    if (result.errors?.length) {
+      ElMessage.warning(`${summary}；${result.errors.length} 行失败：${result.errors[0]}`)
+    } else {
+      ElMessage.success(summary)
+    }
+
+    await loadData()
+  }
+  input.click()
 }
 
 function openForm(row) {

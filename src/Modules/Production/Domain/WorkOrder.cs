@@ -83,6 +83,37 @@ public class WorkOrder : Entity
     /// <summary>按顺序排列的工序任务。</summary>
     public IReadOnlyList<WorkOrderOperation> OrderedOperations => _operations.OrderBy(o => o.Sequence).ToList();
 
+    /// <summary>累计实际工时（秒）。</summary>
+    public int ActualSeconds => _operations.Sum(o => o.ActualSeconds);
+
+    /// <summary>累计标准工时（秒）。</summary>
+    public int StandardSeconds => _operations.Sum(o => o.StandardSeconds);
+
+    /// <summary>
+    /// 工单整体进度（0~100）：按各工序标准工时加权；没有工序时按完成数量比例计算。
+    /// </summary>
+    public int ProgressPercent
+    {
+        get
+        {
+            if (_operations.Count == 0)
+            {
+                return PlannedQuantity <= 0
+                    ? 0
+                    : (int)Math.Min(100, Math.Round(CompletedQuantity * 100d / PlannedQuantity));
+            }
+
+            var totalStandard = _operations.Sum(o => o.StandardSeconds);
+            if (totalStandard > 0)
+            {
+                var weighted = _operations.Sum(o => o.ProgressPercent * (double)o.StandardSeconds) / totalStandard;
+                return (int)Math.Round(weighted);
+            }
+
+            return (int)Math.Round(_operations.Average(o => (double)o.ProgressPercent));
+        }
+    }
+
     /// <summary>
     /// 下达工单（草稿 → 已下达）：按工艺路线快照展开工序任务。
     /// </summary>
@@ -128,7 +159,12 @@ public class WorkOrder : Entity
     /// <summary>
     /// 工序级报工。要求前序工序已完成，不允许跳序报工。
     /// </summary>
-    public Result ReportOperation(Guid operationId, int goodQuantity, int defectQuantity, int scrapQuantity)
+    public Result ReportOperation(
+        Guid operationId,
+        int goodQuantity,
+        int defectQuantity,
+        int scrapQuantity,
+        int workedSeconds = 0)
     {
         if (Status != WorkOrderStatus.InProgress)
         {
@@ -153,7 +189,7 @@ public class WorkOrder : Entity
                 $"前序工序「{previous.OperationName}」尚未完成，不能跳序报工"));
         }
 
-        var result = operation.Report(goodQuantity, defectQuantity, scrapQuantity);
+        var result = operation.Report(goodQuantity, defectQuantity, scrapQuantity, workedSeconds);
         if (result.IsFailure)
         {
             return result;
@@ -178,8 +214,22 @@ public class WorkOrder : Entity
         int scrapQuantity,
         string? defectCode = null,
         Guid? operatorId = null,
+        Guid? equipmentId = null,
+        int workedSeconds = 0,
+        ProductionReportType reportType = ProductionReportType.Normal,
         string? remark = null)
-        => new(Id, workOrderOperationId, goodQuantity, defectQuantity, scrapQuantity, defectCode, operatorId, remark);
+        => new(
+            Id,
+            workOrderOperationId,
+            goodQuantity,
+            defectQuantity,
+            scrapQuantity,
+            defectCode,
+            operatorId,
+            equipmentId,
+            workedSeconds,
+            reportType,
+            remark);
 
     /// <summary>完成工单（生产完成）。</summary>
     public Result Complete()

@@ -12,6 +12,12 @@ public class CatalogRepository(MasterDataDbContext db) : ICatalogRepository
         return await db.Set<TEntity>().FirstOrDefaultAsync(e => e.Id == id, cancellationToken);
     }
 
+    public async Task<TEntity?> GetByCodeAsync<TEntity>(string code, CancellationToken cancellationToken = default)
+        where TEntity : CatalogEntity
+    {
+        return await db.Set<TEntity>().FirstOrDefaultAsync(e => e.Code == code, cancellationToken);
+    }
+
     public async Task<bool> IsCodeTakenAsync<TEntity>(
         string code,
         Guid? excludeId = null,

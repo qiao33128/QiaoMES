@@ -8,6 +8,9 @@ public record CatalogQueryRequest(int Page = 1, int PageSize = 20, string? Keywo
 /// <summary>启用 / 停用请求。</summary>
 public record SetActiveRequest(bool IsActive);
 
+/// <summary>CSV 导入请求（正文直接是 CSV 文本）。</summary>
+public record ImportCatalogCsvRequest(string Content);
+
 // ---------------- 产品 ----------------
 
 public record ProductDto(

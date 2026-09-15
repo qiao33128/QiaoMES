@@ -27,6 +27,9 @@ public record ReportOperationRequest(
     int DefectQuantity = 0,
     int ScrapQuantity = 0,
     string? DefectCode = null,
+    Guid? EquipmentId = null,
+    int WorkedSeconds = 0,
+    ProductionReportType ReportType = ProductionReportType.Normal,
     string? Remark = null);
 
 /// <summary>工单的一道工序任务。</summary>
@@ -45,6 +48,7 @@ public record WorkOrderOperationDto(
     int ScrapQuantity,
     int ReportedQuantity,
     int ProgressPercent,
+    int ActualSeconds,
     WorkOrderOperationStatus Status,
     DateTime? StartedAt,
     DateTime? CompletedAt);
@@ -58,6 +62,10 @@ public record WorkOrderDto(
     string ProductName,
     int PlannedQuantity,
     int CompletedQuantity,
+    /// <summary>工单整体进度（按工序标准工时加权，0~100）。</summary>
+    int ProgressPercent,
+    int StandardSeconds,
+    int ActualSeconds,
     WorkOrderStatus Status,
     DateTime? PlannedStart,
     DateTime? PlannedEnd,

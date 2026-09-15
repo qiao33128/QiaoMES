@@ -179,7 +179,11 @@ public class WorkOrderService(
         }
 
         var result = workOrder.ReportOperation(
-            operationTaskId, request.GoodQuantity, request.DefectQuantity, request.ScrapQuantity);
+            operationTaskId,
+            request.GoodQuantity,
+            request.DefectQuantity,
+            request.ScrapQuantity,
+            request.WorkedSeconds);
         if (result.IsFailure)
         {
             return Result.Failure<WorkOrderDto>(result.Error);
@@ -193,6 +197,9 @@ public class WorkOrderService(
             request.ScrapQuantity,
             request.DefectCode,
             currentUser.UserId,
+            request.EquipmentId,
+            request.WorkedSeconds,
+            request.ReportType,
             request.Remark));
 
         await repository.SaveChangesAsync(cancellationToken);
@@ -265,6 +272,9 @@ public class WorkOrderService(
         w.ProductName,
         w.PlannedQuantity,
         w.CompletedQuantity,
+        w.ProgressPercent,
+        w.StandardSeconds,
+        w.ActualSeconds,
         w.Status,
         w.PlannedStart,
         w.PlannedEnd,
@@ -293,6 +303,7 @@ public class WorkOrderService(
         o.ScrapQuantity,
         o.ReportedQuantity,
         o.ProgressPercent,
+        o.ActualSeconds,
         o.Status,
         o.StartedAt,
         o.CompletedAt);

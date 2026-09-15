@@ -156,6 +156,9 @@
         <el-form-item label="不良代码">
           <el-input v-model="reportForm.defectCode" placeholder="有不良品时填写，如 D001" />
         </el-form-item>
+        <el-form-item label="实际工时(秒)">
+          <el-input-number v-model="reportForm.workedSeconds" :min="0" style="width: 100%" />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="reportVisible = false">取消</el-button>
@@ -210,6 +213,7 @@ const reportForm = reactive({
   defectQuantity: 0,
   scrapQuantity: 0,
   defectCode: '',
+  workedSeconds: 0,
 })
 
 async function loadProducts() {
@@ -218,6 +222,10 @@ async function loadProducts() {
 }
 
 function progressPercent(row) {
+  // 后端已按工序标准工时加权计算整体进度，优先使用
+  if (typeof row.progressPercent === 'number') {
+    return Math.min(100, Math.max(0, row.progressPercent))
+  }
   if (!row.plannedQuantity) return 0
   return Math.min(100, Math.round((row.completedQuantity / row.plannedQuantity) * 100))
 }
@@ -322,6 +330,7 @@ async function openReportDialog(row) {
     defectQuantity: 0,
     scrapQuantity: 0,
     defectCode: '',
+    workedSeconds: 0,
   })
   reportVisible.value = true
 }
@@ -343,6 +352,7 @@ async function handleReport() {
       defectQuantity: reportForm.defectQuantity,
       scrapQuantity: reportForm.scrapQuantity,
       defectCode: reportForm.defectCode || null,
+      workedSeconds: reportForm.workedSeconds || 0,
     })
     ElMessage.success('报工成功')
     reportVisible.value = false

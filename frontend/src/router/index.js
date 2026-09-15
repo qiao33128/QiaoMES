@@ -23,6 +23,12 @@ const routes = [
         meta: { title: '工单管理', permission: 'workorders:read' },
       },
       {
+        path: 'serial-numbers',
+        name: 'serial-numbers',
+        component: () => import('@/views/production/SerialNumberView.vue'),
+        meta: { title: 'SN 过站', permission: 'workorders:read' },
+      },
+      {
         path: 'master-data',
         name: 'master-data',
         component: () => import('@/views/masterdata/MasterDataView.vue'),

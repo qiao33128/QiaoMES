@@ -76,6 +76,9 @@ public class WorkOrderOperation : Entity
 
     public DateTime? CompletedAt { get; private set; }
 
+    /// <summary>累计实际工时（秒）。</summary>
+    public int ActualSeconds { get; private set; }
+
     /// <summary>累计报工数量（良品 + 不良 + 报废）。</summary>
     public int ReportedQuantity => GoodQuantity + DefectQuantity + ScrapQuantity;
 
@@ -87,11 +90,16 @@ public class WorkOrderOperation : Entity
     /// <summary>
     /// 报工。累计数量达到计划数量时该工序自动完成。
     /// </summary>
-    public Result Report(int goodQuantity, int defectQuantity, int scrapQuantity)
+    /// <param name="workedSeconds">本次实际工时（秒），可传 0 表示只报数量。</param>
+    public Result Report(int goodQuantity, int defectQuantity, int scrapQuantity, int workedSeconds = 0)
     {
         if (goodQuantity < 0 || defectQuantity < 0 || scrapQuantity < 0)
         {
             return Result.Failure(Error.Validation("WorkOrderOperation.InvalidQuantity", "报工数量不能为负数"));
+        }
+        if (workedSeconds < 0)
+        {
+            return Result.Failure(Error.Validation("WorkOrderOperation.InvalidWorkedSeconds", "实际工时不能为负数"));
         }
 
         var total = goodQuantity + defectQuantity + scrapQuantity;
@@ -110,6 +118,7 @@ public class WorkOrderOperation : Entity
         GoodQuantity += goodQuantity;
         DefectQuantity += defectQuantity;
         ScrapQuantity += scrapQuantity;
+        ActualSeconds += workedSeconds;
         StartedAt ??= DateTime.UtcNow;
 
         Status = ReportedQuantity >= PlannedQuantity
@@ -118,7 +127,7 @@ public class WorkOrderOperation : Entity
 
         if (Status == WorkOrderOperationStatus.Completed)
         {
-            CompletedAt = DateTime.UtcNow;
+            CompletedAt ??= DateTime.UtcNow;
         }
 
         return Result.Success();

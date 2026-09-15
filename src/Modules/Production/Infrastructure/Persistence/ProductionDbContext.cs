@@ -12,6 +12,8 @@ public class ProductionDbContext(DbContextOptions<ProductionDbContext> options) 
     public DbSet<WorkOrderOperation> WorkOrderOperations => Set<WorkOrderOperation>();
     public DbSet<ProductionReport> ProductionReports => Set<ProductionReport>();
     public DbSet<WorkOrderDailySequence> WorkOrderDailySequences => Set<WorkOrderDailySequence>();
+    public DbSet<SerialNumber> SerialNumbers => Set<SerialNumber>();
+    public DbSet<WipTracking> WipTrackings => Set<WipTracking>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -54,14 +56,46 @@ public class ProductionDbContext(DbContextOptions<ProductionDbContext> options) 
         operation.HasIndex(o => new { o.WorkOrderId, o.Sequence });
         operation.HasQueryFilter(o => !o.IsDeleted);
 
+        operation.Property(o => o.ActualSeconds).IsRequired();
+
         var report = modelBuilder.Entity<ProductionReport>();
         report.ToTable("production_reports");
         report.HasKey(r => r.Id);
         report.Property(r => r.DefectCode).HasMaxLength(50);
         report.Property(r => r.Remark).HasMaxLength(500);
+        report.Property(r => r.ReportType).HasConversion<int>();
         report.HasIndex(r => r.WorkOrderId);
         report.HasIndex(r => r.WorkOrderOperationId);
         report.HasQueryFilter(r => !r.IsDeleted);
+
+        // ---------- SN 与过站记录（WIP） ----------
+        var serialNumber = modelBuilder.Entity<SerialNumber>();
+        serialNumber.ToTable("serial_numbers");
+        serialNumber.HasKey(s => s.Id);
+        serialNumber.Property(s => s.Sn).HasMaxLength(100).IsRequired();
+        serialNumber.Property(s => s.ProductCode).HasMaxLength(100).IsRequired();
+        serialNumber.Property(s => s.CurrentOperationName).HasMaxLength(200);
+        serialNumber.Property(s => s.LastCompletedOperationName).HasMaxLength(200);
+        serialNumber.Property(s => s.Remark).HasMaxLength(500);
+        serialNumber.Property(s => s.Status).HasConversion<int>();
+        serialNumber.HasIndex(s => s.Sn).IsUnique();
+        serialNumber.HasIndex(s => new { s.WorkOrderId, s.Status });
+        serialNumber.HasQueryFilter(s => !s.IsDeleted);
+        serialNumber.HasMany(s => s.Trackings)
+            .WithOne()
+            .HasForeignKey(t => t.SerialNumberId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        var tracking = modelBuilder.Entity<WipTracking>();
+        tracking.ToTable("wip_trackings");
+        tracking.HasKey(t => t.Id);
+        tracking.Property(t => t.OperationName).HasMaxLength(200).IsRequired();
+        tracking.Property(t => t.Action).HasConversion<int>();
+        tracking.Property(t => t.Result).HasConversion<int>();
+        tracking.Property(t => t.Remark).HasMaxLength(500);
+        tracking.HasIndex(t => t.SerialNumberId);
+        tracking.HasIndex(t => new { t.WorkOrderId, t.TrackedAt });
+        tracking.HasQueryFilter(t => !t.IsDeleted);
 
         var sequence = modelBuilder.Entity<WorkOrderDailySequence>();
         sequence.ToTable("work_order_daily_sequences");

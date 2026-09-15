@@ -17,6 +17,7 @@ public static class DependencyInjection
 
         services.AddScoped<IWorkOrderRepository, WorkOrderRepository>();
         services.AddScoped<IWorkOrderNumberGenerator, WorkOrderNumberGenerator>();
+        services.AddScoped<ISerialNumberRepository, SerialNumberRepository>();
 
         return services;
     }

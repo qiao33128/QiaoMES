@@ -22,6 +22,10 @@
           <el-icon><Document /></el-icon>
           <template #title>工单管理</template>
         </el-menu-item>
+        <el-menu-item v-if="authStore.hasPermission('workorders:read')" index="/serial-numbers">
+          <el-icon><Position /></el-icon>
+          <template #title>SN 过站</template>
+        </el-menu-item>
         <el-menu-item v-if="authStore.hasPermission('masterdata:read')" index="/master-data">
           <el-icon><Grid /></el-icon>
           <template #title>主数据维护</template>
@@ -79,6 +83,7 @@ import {
   Document,
   Grid,
   Key,
+  Position,
   User,
   UserFilled,
   Fold,

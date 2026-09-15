@@ -33,6 +33,16 @@ function createVersionedApi(resource) {
 export const bomApi = createVersionedApi('boms')
 export const routingApi = createVersionedApi('routings')
 
+/** 导出为 CSV 文件（带 BOM，Excel 可直接打开） */
+export function exportCatalogCsv(resource) {
+  return http.get(`/master-data/${resource}/export`, { responseType: 'blob' })
+}
+
+/** 从 CSV 文本导入（按编码 upsert） */
+export function importCatalogCsv(resource, content) {
+  return http.post(`/master-data/${resource}/import`, { content })
+}
+
 export const MaterialTypeMap = { 0: '原材料', 1: '半成品', 2: '成品', 3: '辅料' }
 
 export const WorkCenterTypeMap = { 0: '产线', 1: '单元', 2: '工位', 3: '设备' }

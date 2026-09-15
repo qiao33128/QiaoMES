@@ -10,6 +10,7 @@ public static class DependencyInjection
         this IServiceCollection services)
     {
         services.AddScoped<IWorkOrderService, WorkOrderService>();
+        services.AddScoped<ISerialNumberService, SerialNumberService>();
         services.AddScoped<IWorkOrderNotifier, WorkOrderNotifier>();
         services.AddSignalR();
         return services;

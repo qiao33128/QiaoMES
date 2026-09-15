@@ -16,6 +16,9 @@ public static class DependencyInjection
 
         // 供其它模块（Production）读取主数据的只读契约
         services.AddScoped<IMasterDataQueryService, MasterDataQueryService>();
+
+        // CSV 导入导出
+        services.AddScoped<ICatalogCsvService, CatalogCsvService>();
         return services;
     }
 

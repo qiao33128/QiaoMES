@@ -12,6 +12,10 @@ public interface ICatalogRepository
     Task<TEntity?> GetByIdAsync<TEntity>(Guid id, CancellationToken cancellationToken = default)
         where TEntity : CatalogEntity;
 
+    /// <summary>按业务编码查询（导入时的 upsert 匹配键）。</summary>
+    Task<TEntity?> GetByCodeAsync<TEntity>(string code, CancellationToken cancellationToken = default)
+        where TEntity : CatalogEntity;
+
     /// <summary>编码是否已被占用（<paramref name="excludeId"/> 用于更新时排除自身）。</summary>
     Task<bool> IsCodeTakenAsync<TEntity>(string code, Guid? excludeId = null, CancellationToken cancellationToken = default)
         where TEntity : CatalogEntity;
