@@ -13,6 +13,9 @@ public static class DependencyInjection
         services.AddScoped<IOperationService, OperationService>();
         services.AddScoped<IBomService, BomService>();
         services.AddScoped<IRoutingService, RoutingService>();
+
+        // 供其它模块（Production）读取主数据的只读契约
+        services.AddScoped<IMasterDataQueryService, MasterDataQueryService>();
         return services;
     }
 

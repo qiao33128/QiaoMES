@@ -28,8 +28,9 @@ export const workOrderApi = {
   start(id) {
     return http.post(`/work-orders/${id}/start`)
   },
-  report(id, quantity) {
-    return http.post(`/work-orders/${id}/report`, { quantity })
+  /** 工序级报工：良品 / 不良 / 报废 */
+  reportOperation(workOrderId, operationTaskId, data) {
+    return http.post(`/work-orders/${workOrderId}/operations/${operationTaskId}/report`, data)
   },
   complete(id) {
     return http.post(`/work-orders/${id}/complete`)

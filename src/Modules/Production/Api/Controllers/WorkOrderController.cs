@@ -56,10 +56,15 @@ public class WorkOrderController(IWorkOrderService service) : ControllerBase
     public async Task<IActionResult> Start(Guid id, CancellationToken cancellationToken)
         => ApiResults.FromResult(await service.StartProductionAsync(id, cancellationToken));
 
-    [HttpPost("{id:guid}/report")]
+    /// <summary>工序级报工（良品 / 不良 / 报废）。前序工序未完成时会被拒绝。</summary>
+    [HttpPost("{id:guid}/operations/{operationTaskId:guid}/report")]
     [HasPermission(Permissions.WorkOrders.Report)]
-    public async Task<IActionResult> Report(Guid id, [FromBody] ReportRequest request, CancellationToken cancellationToken)
-        => ApiResults.FromResult(await service.ReportAsync(id, request, cancellationToken));
+    public async Task<IActionResult> ReportOperation(
+        Guid id,
+        Guid operationTaskId,
+        [FromBody] ReportOperationRequest request,
+        CancellationToken cancellationToken)
+        => ApiResults.FromResult(await service.ReportOperationAsync(id, operationTaskId, request, cancellationToken));
 
     [HttpPost("{id:guid}/complete")]
     [HasPermission(Permissions.WorkOrders.Complete)]

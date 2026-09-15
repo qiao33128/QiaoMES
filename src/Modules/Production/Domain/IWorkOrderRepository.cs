@@ -19,6 +19,12 @@ public interface IWorkOrderRepository
     void Add(WorkOrder workOrder);
 
     /// <summary>
+    /// 显式持久化工序任务（工单下达时按工艺路线展开）。
+    /// <para>EF 会把「通过导航集合发现、主键已有值」的子实体判为 Modified，必须显式 Add。</para>
+    /// </summary>
+    void AddOperation(WorkOrderOperation operation);
+
+    /// <summary>
     /// 仅用于「未受变更跟踪」的工单（分离场景）。
     /// <para>
     /// 仓储查询返回的工单本身已被跟踪，此时调用本方法会把导航图中的新实体误标为 Modified，

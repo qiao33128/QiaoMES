@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Domain\QiaoMES.Production.Domain.csproj" />
+    <ProjectReference Include="..\..\MasterData\Application\QiaoMES.MasterData.Application.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\Shared\QiaoMES.Shared.csproj" />
   </ItemGroup>
 

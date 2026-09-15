@@ -55,7 +55,7 @@ public class UnitOfWorkTransactionTests : IAsyncLifetime
             identityDb.Roles.Add(role);
 
             var workOrder = new WorkOrder(
-                $"WO-TX-{Guid.NewGuid():N}"[..20], "P-TX", "事务测试产品", 1, null, null, null, null);
+                $"WO-TX-{Guid.NewGuid():N}"[..20], Guid.NewGuid(), "P-TX", "事务测试产品", 1, null, null, null, null);
             productionDb.WorkOrders.Add(workOrder);
 
             await identityDb.SaveChangesAsync();
@@ -100,7 +100,7 @@ public class UnitOfWorkTransactionTests : IAsyncLifetime
             identityDb.Roles.Add(role);
 
             var workOrder = new WorkOrder(
-                $"WO-TX-{Guid.NewGuid():N}"[..20], "P-TX", "事务测试产品", 1, null, null, null, null);
+                $"WO-TX-{Guid.NewGuid():N}"[..20], Guid.NewGuid(), "P-TX", "事务测试产品", 1, null, null, null, null);
             productionDb.WorkOrders.Add(workOrder);
 
             await identityDb.SaveChangesAsync();

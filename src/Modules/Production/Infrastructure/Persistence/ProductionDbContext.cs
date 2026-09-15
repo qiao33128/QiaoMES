@@ -9,6 +9,7 @@ namespace QiaoMES.Production.Infrastructure.Persistence;
 public class ProductionDbContext(DbContextOptions<ProductionDbContext> options) : DbContext(options)
 {
     public DbSet<WorkOrder> WorkOrders => Set<WorkOrder>();
+    public DbSet<WorkOrderOperation> WorkOrderOperations => Set<WorkOrderOperation>();
     public DbSet<ProductionReport> ProductionReports => Set<ProductionReport>();
     public DbSet<WorkOrderDailySequence> WorkOrderDailySequences => Set<WorkOrderDailySequence>();
 
@@ -24,20 +25,42 @@ public class ProductionDbContext(DbContextOptions<ProductionDbContext> options) 
         workOrder.Property(w => w.ProductName).HasMaxLength(200).IsRequired();
         workOrder.Property(w => w.WorkCenter).HasMaxLength(100);
         workOrder.Property(w => w.Remark).HasMaxLength(500);
+        workOrder.Property(w => w.RoutingVersion).HasMaxLength(50);
+        workOrder.Property(w => w.BomVersion).HasMaxLength(50);
         workOrder.Property(w => w.Status).HasConversion<int>();
         workOrder.HasIndex(w => w.OrderNumber).IsUnique();
+        workOrder.HasIndex(w => new { w.ProductId, w.Status });
         // 列表页默认按创建时间倒序 + 状态筛选，建立组合索引避免全表排序
         workOrder.HasIndex(w => new { w.Status, w.CreatedAt });
         workOrder.HasQueryFilter(w => !w.IsDeleted);
+
+        workOrder.HasMany(w => w.Operations)
+            .WithOne()
+            .HasForeignKey(o => o.WorkOrderId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         workOrder.HasMany(w => w.Reports)
             .WithOne()
             .HasForeignKey(r => r.WorkOrderId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        var operation = modelBuilder.Entity<WorkOrderOperation>();
+        operation.ToTable("work_order_operations");
+        operation.HasKey(o => o.Id);
+        operation.Property(o => o.OperationCode).HasMaxLength(50).IsRequired();
+        operation.Property(o => o.OperationName).HasMaxLength(200).IsRequired();
+        operation.Property(o => o.Status).HasConversion<int>();
+        operation.HasIndex(o => o.WorkOrderId);
+        operation.HasIndex(o => new { o.WorkOrderId, o.Sequence });
+        operation.HasQueryFilter(o => !o.IsDeleted);
+
         var report = modelBuilder.Entity<ProductionReport>();
         report.ToTable("production_reports");
         report.HasKey(r => r.Id);
+        report.Property(r => r.DefectCode).HasMaxLength(50);
+        report.Property(r => r.Remark).HasMaxLength(500);
         report.HasIndex(r => r.WorkOrderId);
+        report.HasIndex(r => r.WorkOrderOperationId);
         report.HasQueryFilter(r => !r.IsDeleted);
 
         var sequence = modelBuilder.Entity<WorkOrderDailySequence>();

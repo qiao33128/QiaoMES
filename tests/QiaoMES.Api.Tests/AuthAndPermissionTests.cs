@@ -64,7 +64,7 @@ public class AuthAndPermissionTests(QiaoMESApiFactory factory)
         var admin = await LoginAsync(AdminUserName, AdminPassword);
         var (operatorClient, _) = await CreateOperatorAsync(admin);
 
-        var response = await operatorClient.PostAsJsonAsync("/api/work-orders", NewWorkOrderPayload());
+        var response = await operatorClient.PostAsJsonAsync("/api/work-orders", NewWorkOrderPayload(Guid.NewGuid()));
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
@@ -95,8 +95,9 @@ public class AuthAndPermissionTests(QiaoMESApiFactory factory)
     public async Task 管理员创建工单_单号符合约定格式()
     {
         var admin = await LoginAsync(AdminUserName, AdminPassword);
+        var productId = await CreateProductAsync(admin);
 
-        var response = await admin.PostAsJsonAsync("/api/work-orders", NewWorkOrderPayload());
+        var response = await admin.PostAsJsonAsync("/api/work-orders", NewWorkOrderPayload(productId));
         response.EnsureSuccessStatusCode();
 
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -109,9 +110,10 @@ public class AuthAndPermissionTests(QiaoMESApiFactory factory)
     public async Task 并发创建工单_不产生重复单号()
     {
         var admin = await LoginAsync(AdminUserName, AdminPassword);
+        var productId = await CreateProductAsync(admin);
 
         var tasks = Enumerable.Range(0, 10)
-            .Select(_ => admin.PostAsJsonAsync("/api/work-orders", NewWorkOrderPayload()))
+            .Select(_ => admin.PostAsJsonAsync("/api/work-orders", NewWorkOrderPayload(productId)))
             .ToArray();
 
         var responses = await Task.WhenAll(tasks);
@@ -127,16 +129,30 @@ public class AuthAndPermissionTests(QiaoMESApiFactory factory)
         Assert.Equal(orderNumbers.Count, orderNumbers.Distinct(StringComparer.Ordinal).Count());
     }
 
-    private static object NewWorkOrderPayload() => new
+    private static object NewWorkOrderPayload(Guid productId) => new
     {
-        productCode = "P-001",
-        productName = "测试产品",
+        productId,
         plannedQuantity = 10,
         plannedStart = (DateTime?)null,
         plannedEnd = (DateTime?)null,
         workCenter = "LINE-01",
         remark = (string?)null,
     };
+
+    /// <summary>工单必须挂到真实产品上（创建时会校验产品存在且启用）。</summary>
+    private static async Task<Guid> CreateProductAsync(HttpClient admin)
+    {
+        var response = await admin.PostAsJsonAsync("/api/master-data/products", new
+        {
+            code = $"P{Guid.NewGuid():N}"[..12],
+            name = "工单测试产品",
+            spec = (string?)null,
+            unit = "PCS",
+            remark = (string?)null,
+        });
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+    }
 
     private async Task<HttpClient> LoginAsync(string username, string password)
     {

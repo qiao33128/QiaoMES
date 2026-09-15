@@ -95,11 +95,15 @@
     <!-- 新建工单对话框 -->
     <el-dialog v-model="createVisible" title="新建工单" width="520px">
       <el-form ref="createFormRef" :model="createForm" :rules="createRules" label-width="90px">
-        <el-form-item label="产品编码" prop="productCode">
-          <el-input v-model="createForm.productCode" placeholder="如 P001" />
-        </el-form-item>
-        <el-form-item label="产品名称" prop="productName">
-          <el-input v-model="createForm.productName" placeholder="产品名称" />
+        <el-form-item label="产品" prop="productId">
+          <el-select v-model="createForm.productId" filterable placeholder="选择产品" style="width: 100%">
+            <el-option
+              v-for="p in products"
+              :key="p.id"
+              :label="`${p.code} ${p.name}`"
+              :value="p.id"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item label="计划数量" prop="plannedQuantity">
           <el-input-number v-model="createForm.plannedQuantity" :min="1" :max="100000" />
@@ -123,17 +127,34 @@
       </template>
     </el-dialog>
 
-    <!-- 报工对话框 -->
-    <el-dialog v-model="reportVisible" title="生产报工" width="420px">
+    <!-- 工序报工对话框 -->
+    <el-dialog v-model="reportVisible" title="工序报工" width="620px">
       <el-form label-width="90px">
         <el-form-item label="工单号">
           <el-input :model-value="currentRow?.orderNumber" disabled />
         </el-form-item>
-        <el-form-item label="已完成">
-          <el-input :model-value="`${currentRow?.completedQuantity} / ${currentRow?.plannedQuantity}`" disabled />
+        <el-form-item label="工序">
+          <el-select v-model="reportForm.operationTaskId" placeholder="选择工序" style="width: 100%">
+            <el-option
+              v-for="op in currentOperations"
+              :key="op.id"
+              :label="`${op.sequence} · ${op.operationName}（已报 ${op.reportedQuantity}/${op.plannedQuantity}）`"
+              :value="op.id"
+              :disabled="op.status === 2"
+            />
+          </el-select>
         </el-form-item>
-        <el-form-item label="本次数量">
-          <el-input-number v-model="reportQuantity" :min="1" :max="remainQuantity" style="width: 100%" />
+        <el-form-item label="良品数量">
+          <el-input-number v-model="reportForm.goodQuantity" :min="0" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="不良数量">
+          <el-input-number v-model="reportForm.defectQuantity" :min="0" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="报废数量">
+          <el-input-number v-model="reportForm.scrapQuantity" :min="0" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="不良代码">
+          <el-input v-model="reportForm.defectCode" placeholder="有不良品时填写，如 D001" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -145,10 +166,11 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh, Plus, ArrowDown } from '@element-plus/icons-vue'
 import { workOrderApi, WorkOrderStatusMap } from '@/api/workorder'
+import { productApi } from '@/api/masterdata'
 
 const loading = ref(false)
 const list = ref([])
@@ -166,11 +188,11 @@ const reportVisible = ref(false)
 const submitting = ref(false)
 const createFormRef = ref()
 const currentRow = ref(null)
-const reportQuantity = ref(1)
+const products = ref([])
+const currentOperations = ref([])
 
 const createForm = reactive({
-  productCode: '',
-  productName: '',
+  productId: null,
   plannedQuantity: 10,
   workCenter: '',
   plannedStart: null,
@@ -179,13 +201,21 @@ const createForm = reactive({
 })
 
 const createRules = {
-  productCode: [{ required: true, message: '请输入产品编码', trigger: 'blur' }],
-  productName: [{ required: true, message: '请输入产品名称', trigger: 'blur' }],
+  productId: [{ required: true, message: '请选择产品', trigger: 'change' }],
 }
 
-const remainQuantity = computed(
-  () => (currentRow.value ? currentRow.value.plannedQuantity - currentRow.value.completedQuantity : 1)
-)
+const reportForm = reactive({
+  operationTaskId: null,
+  goodQuantity: 0,
+  defectQuantity: 0,
+  scrapQuantity: 0,
+  defectCode: '',
+})
+
+async function loadProducts() {
+  const data = await productApi.list({ page: 1, pageSize: 100, isActive: true })
+  products.value = data.items
+}
 
 function progressPercent(row) {
   if (!row.plannedQuantity) return 0
@@ -238,8 +268,7 @@ function resetQuery() {
 
 function openCreateDialog() {
   Object.assign(createForm, {
-    productCode: '',
-    productName: '',
+    productId: null,
     plannedQuantity: 10,
     workCenter: '',
     plannedStart: null,
@@ -280,16 +309,41 @@ async function handleStart(row) {
   loadData()
 }
 
-function openReportDialog(row) {
-  currentRow.value = row
-  reportQuantity.value = 1
+async function openReportDialog(row) {
+  // 列表数据不含工序明细，打开时拉一次详情
+  const detail = await workOrderApi.getById(row.id)
+  currentRow.value = detail
+  currentOperations.value = detail.operations || []
+
+  const pending = currentOperations.value.find((op) => op.status !== 2)
+  Object.assign(reportForm, {
+    operationTaskId: pending ? pending.id : null,
+    goodQuantity: 0,
+    defectQuantity: 0,
+    scrapQuantity: 0,
+    defectCode: '',
+  })
   reportVisible.value = true
 }
 
 async function handleReport() {
+  if (!reportForm.operationTaskId) {
+    ElMessage.warning('请选择要报工的工序')
+    return
+  }
+  if (reportForm.goodQuantity + reportForm.defectQuantity + reportForm.scrapQuantity <= 0) {
+    ElMessage.warning('报工数量必须大于 0')
+    return
+  }
+
   submitting.value = true
   try {
-    await workOrderApi.report(currentRow.value.id, reportQuantity.value)
+    await workOrderApi.reportOperation(currentRow.value.id, reportForm.operationTaskId, {
+      goodQuantity: reportForm.goodQuantity,
+      defectQuantity: reportForm.defectQuantity,
+      scrapQuantity: reportForm.scrapQuantity,
+      defectCode: reportForm.defectCode || null,
+    })
     ElMessage.success('报工成功')
     reportVisible.value = false
     loadData()
@@ -311,7 +365,9 @@ async function handleMore(command, row) {
   loadData()
 }
 
-onMounted(loadData)
+onMounted(async () => {
+  await Promise.all([loadData(), loadProducts()])
+})
 </script>
 
 <style scoped>

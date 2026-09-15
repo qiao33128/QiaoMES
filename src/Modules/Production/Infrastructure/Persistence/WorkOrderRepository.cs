@@ -8,6 +8,7 @@ public class WorkOrderRepository(ProductionDbContext db) : IWorkOrderRepository
     public async Task<WorkOrder?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         return await db.WorkOrders
+            .Include(w => w.Operations)
             .Include(w => w.Reports)
             .FirstOrDefaultAsync(w => w.Id == id, cancellationToken);
     }
@@ -15,6 +16,7 @@ public class WorkOrderRepository(ProductionDbContext db) : IWorkOrderRepository
     public async Task<WorkOrder?> GetByNumberAsync(string orderNumber, CancellationToken cancellationToken = default)
     {
         return await db.WorkOrders
+            .Include(w => w.Operations)
             .Include(w => w.Reports)
             .FirstOrDefaultAsync(w => w.OrderNumber == orderNumber, cancellationToken);
     }
@@ -55,6 +57,8 @@ public class WorkOrderRepository(ProductionDbContext db) : IWorkOrderRepository
     }
 
     public void Add(WorkOrder workOrder) => db.WorkOrders.Add(workOrder);
+
+    public void AddOperation(WorkOrderOperation operation) => db.WorkOrderOperations.Add(operation);
 
     public void Update(WorkOrder workOrder) => db.WorkOrders.Update(workOrder);
 
