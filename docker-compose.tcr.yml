@@ -82,6 +82,9 @@ services:
       - "${WEB_PORT:-8080}:80"
     networks:
       - qiaomes-net
+      # 与看板站网关（kanban-caddy）同网，便于用域名 + HTTPS 反向代理到本服务；
+      # 该网络由看板站 compose 创建，故声明为 external。
+      - gateway
 
 volumes:
   qiaomes_pgdata:
@@ -89,3 +92,7 @@ volumes:
 networks:
   qiaomes-net:
     driver: bridge
+
+  gateway:
+    external: true
+    name: ${GATEWAY_NETWORK:-kanban_net}
