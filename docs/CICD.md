@@ -52,7 +52,7 @@ GitHub Actions
 |---|---|
 | `REGISTRY` | `ccr.ccs.tencentyun.com` |
 | `REGISTRY_NAMESPACE` | `qiaoqiao11` |
-| `REGISTRY_USERNAME` | `100047229903` |
+| `REGISTRY_USERNAME` | TCR 个人版的登录名（**容器镜像服务控制台 → 访问凭证** 可见，形如一串数字账号 ID） |
 | `REGISTRY_PASSWORD` | TCR 个人版访问凭证密码 |
 
 > ⚠️ 已知风险：GitHub Runner 在境外，**推腾讯 TCR 可能慢或不稳**（看板站当初记录过"跨境 push TCR 不可靠"，
@@ -124,7 +124,7 @@ GitHub Actions
 
 | 文件 | 说明 |
 |---|---|
-| `docker-compose.deploy.yml` | 每次部署从 `main` 分支的 raw 地址重新拉取，保证与仓库一致（由 CI 维护，别手工改） |
+| `docker-compose.deploy.yml` | 每次部署由 CI **内联下发**（内容取自当次提交的仓库文件），与仓库强一致。由 CI 维护，别手工改 |
 | `.env` | 部署脚本**合并写入**：只覆盖本次显式提供的键，其余保留原值 |
 | `.env`（示例键） | `QIAOMES_API_IMAGE` / `QIAOMES_WEB_IMAGE` / `JWT_SECRET_KEY` / `POSTGRES_PASSWORD` / `WEB_PORT` / `CORS_ORIGINS` / `GATEWAY_NETWORK` / `ASSISTANT_*` |
 | `docker-compose.tcr.yml.bak` | 旧文件名（首次部署时自动改名留底） |
@@ -180,7 +180,7 @@ docker compose -f docker-compose.deploy.yml up -d --force-recreate api web
 | 日志里 `DEPLOY-FAIL-PULL` | 服务器拉不到镜像：镜像仓地址/凭证错，或镜像还没推成功 |
 | 日志里 `DEPLOY-FAIL-LOGIN` | 镜像仓用户名/密码错（ACR 个人版要用**固定密码**） |
 | 日志里 `DEPLOY-FAIL-HEALTH-000` | 容器起来了但 API 没就绪 → 日志里会跟一段 `docker logs qiaomes-api`，多数是数据库迁移失败或 `POSTGRES_PASSWORD` 被改错 |
-| 日志里 `DEPLOY-FAIL-COMPOSE` | 服务器拉不到 raw 上的 `docker-compose.deploy.yml`（文件没推上去 / 分支名不对） |
+| 日志里 `DEPLOY-FAIL-COMPOSE` | 只出现在"回退下载"路径（CI 没内联编排文件时）：服务器访问 GitHub raw 失败，实测偶发 `curl: (56) SSL_ERROR_SYSCALL, errno 110` 超时。正常路径编排文件由 CI 内联，不走网络 |
 | 部署成功但域名打不开 | `qiaomes-web` 没挂上 `kanban_net`，或 Caddyfile 里的 mes 站点被看板站的 CI 覆盖了（看板仓 `deploy/Caddyfile` 必须带 mes 段） |
 | 前端页面/菜单是旧的 | 镜像没更新：确认 `up -d` 带了 `--force-recreate`（脚本里有），或手动 `docker compose pull` 后重建 |
 

@@ -17,6 +17,8 @@ QiaoMES · GitHub Actions → 阿里云轻量应用服务器 自动部署脚本
 
 ## 关键设计
 1. 服务器端脚本用 base64 内联下发，避免云端 shell 吞引号 / CRLF 问题；
+   **编排文件也同样内联**（取自当次提交的仓库文件）—— 实测服务器直连
+   raw.githubusercontent.com 会偶发 `curl: (56) … SSL_ERROR_SYSCALL, errno 110`，上一版部署就是死在这一步；
 2. 用 `nohup` 后台执行 + 外层轮询日志 —— RunCommand 单次调用 15 分钟超时会杀掉耗时任务；
 3. `.env` 采用**合并写入**：只覆盖本次显式提供的键，其余保留服务器上已有值
    （最重要的一条：POSTGRES_PASSWORD 必须与数据库卷初始化时一致，不能被 CI 覆盖成默认值）；
@@ -80,8 +82,20 @@ echo "--- .env 生效内容（密码只显示键名）"
 sed 's/=.*/=<hidden>/' "$ENVF"
 
 echo "=== [3/7] 刷新编排文件"
-curl -fsSL -o "$DIR/$COMPOSE.new" "__RAW_COMPOSE_URL__" || { echo DEPLOY-FAIL-COMPOSE; exit 1; }
+if [ -n "__COMPOSE_B64__" ]; then
+  # 编排文件由 CI 内联下发。
+  # 为什么不用 curl 从 GitHub raw 拉：实测这台服务器到 raw.githubusercontent.com 的连接会偶发
+  # `curl: (56) OpenSSL SSL_read: SSL_ERROR_SYSCALL, errno 110`（超时/RST），一旦拉不到部署就直接失败。
+  # 编排文件本来就在 CI 的检出里，内联过来既确定性又少一次外网依赖。
+  echo "__COMPOSE_B64__" | base64 -d > "$DIR/$COMPOSE.new"
+  echo "（编排文件来自 CI 内联，未经网络）"
+else
+  echo "（CI 未内联编排文件，回退为从 raw 下载）"
+  curl -fsSL --retry 3 --retry-delay 3 -o "$DIR/$COMPOSE.new" "__RAW_COMPOSE_URL__" \
+    || { echo DEPLOY-FAIL-COMPOSE; exit 1; }
+fi
 [ -s "$DIR/$COMPOSE.new" ] || { echo DEPLOY-FAIL-COMPOSE-EMPTY; exit 1; }
+grep -q '^services:' "$DIR/$COMPOSE.new" || { echo DEPLOY-FAIL-COMPOSE-INVALID; exit 1; }
 mv -f "$DIR/$COMPOSE.new" "$DIR/$COMPOSE"
 if [ -f "$DIR/docker-compose.tcr.yml" ]; then
   mv -f "$DIR/docker-compose.tcr.yml" "$DIR/docker-compose.tcr.yml.bak"
@@ -252,13 +266,34 @@ def build_env_lines():
     return lines
 
 
+def load_compose_b64():
+    """把仓库里的编排文件内联成 base64；找不到就返回空串（服务器侧回退为 curl 下载）。"""
+    here = os.path.dirname(os.path.abspath(__file__))
+    candidates = [
+        os.environ.get("COMPOSE_FILE"),
+        os.path.normpath(os.path.join(here, "..", "docker-compose.deploy.yml")),
+        "docker-compose.deploy.yml",
+    ]
+    for path in candidates:
+        if path and os.path.isfile(path):
+            with open(path, "rb") as handle:
+                content = handle.read()
+            print("=== 内联编排文件 %s（%d 字节）" % (path, len(content)))
+            return base64.b64encode(content).decode("ascii")
+    print("=== 警告：找不到 docker-compose.deploy.yml，服务器将回退为从 raw 下载")
+    return ""
+
+
 def build_server_script():
     env_text = "\n".join(build_env_lines()) + ("\n" if build_env_lines() else "")
     env_b64 = base64.b64encode(env_text.encode("utf-8")).decode("ascii")
 
     script = SERVER_SCRIPT
     script = script.replace("__ENV_B64__", env_b64)
-    script = script.replace("__RAW_COMPOSE_URL__", need("RAW_COMPOSE_URL"))
+    script = script.replace("__COMPOSE_B64__", load_compose_b64())
+    script = script.replace("__RAW_COMPOSE_URL__", optional(
+        "RAW_COMPOSE_URL",
+        "https://raw.githubusercontent.com/qiao33128/QiaoMES/main/docker-compose.deploy.yml"))
     script = script.replace("__REGISTRY__", optional("REGISTRY", "ccr.ccs.tencentyun.com"))
     script = script.replace("__REGISTRY_USERNAME__", optional("REGISTRY_USERNAME"))
     script = script.replace(
