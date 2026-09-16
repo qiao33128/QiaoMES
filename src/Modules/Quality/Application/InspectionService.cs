@@ -1,6 +1,7 @@
 using QiaoMES.Quality.Application.Contracts;
 using QiaoMES.Quality.Domain;
 using QiaoMES.Shared;
+using QiaoMES.Shared.IntegrationEvents;
 
 namespace QiaoMES.Quality.Application;
 
@@ -36,6 +37,7 @@ public class InspectionService(
     IInspectionRepository repository,
     INonconformanceRepository nonconformanceRepository,
     IMaterialLotRepository materialLotRepository,
+    IOutboxWriter outboxWriter,
     ICurrentUser currentUser) : IInspectionService
 {
     public async Task<Result<PagedResult<InspectionDto>>> GetListAsync(
@@ -241,6 +243,22 @@ public class InspectionService(
 
             nonconformanceRepository.Add(ncr);
         }
+
+        // 判定完成 → 发布集成事件：与业务数据同一事务落库，由 Outbox 异步投递给订阅方
+        // （质量模块不需要知道谁订阅，设备/看板/ERP 各自接入即可）
+        var firstFailedItem = inspection.OrderedItems.FirstOrDefault(i => i.IsQualified == false);
+        outboxWriter.Publish(new InspectionJudgedEvent(
+            inspection.Id,
+            inspection.InspectionNumber,
+            (int)inspection.Type,
+            (int)inspection.Status,
+            inspection.Sn,
+            inspection.ProductCode,
+            inspection.LotNumber,
+            inspection.WorkOrderId,
+            firstFailedItem?.DefectCode,
+            inspection.DefectQuantity,
+            inspection.Conclusion.ToString()));
 
         // 两个仓储共享同一 DbContext（同一作用域），一次提交保持原子
         await repository.SaveChangesAsync(cancellationToken);

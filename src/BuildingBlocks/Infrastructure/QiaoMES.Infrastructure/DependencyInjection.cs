@@ -6,6 +6,7 @@ using Npgsql;
 using QiaoMES.Infrastructure.Authorization;
 using QiaoMES.Infrastructure.Exceptions;
 using QiaoMES.Infrastructure.HealthChecks;
+using QiaoMES.Infrastructure.Outbox;
 using QiaoMES.Infrastructure.Security;
 using QiaoMES.Infrastructure.UnitOfWork;
 using QiaoMES.Shared;
@@ -49,6 +50,9 @@ public static class DependencyInjection
         // ---------- 5. 健康检查 ----------
         services.AddHealthChecks()
             .AddCheck<DatabaseHealthCheck>("database", tags: ["ready"]);
+
+        // ---------- 6. Outbox（模块间集成事件：事务内落库 + 异步投递 + 失败重试） ----------
+        services.AddOutbox();
 
         return services;
     }

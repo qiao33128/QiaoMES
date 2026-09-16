@@ -20,9 +20,12 @@ using QiaoMES.Equipment.Api;
 using QiaoMES.Equipment.Api.Hubs;
 using QiaoMES.Equipment.Infrastructure;
 using QiaoMES.Equipment.Infrastructure.Persistence;
+using QiaoMES.Api.EventHandlers;
+using QiaoMES.Infrastructure.Outbox;
 using QiaoMES.Reporting.Api;
 using QiaoMES.Reporting.Infrastructure;
 using QiaoMES.Reporting.Infrastructure.Persistence;
+using QiaoMES.Shared.IntegrationEvents;
 using QiaoMES.Quality.Infrastructure.Persistence;
 using QiaoMES.Production.Api;
 using QiaoMES.Production.Api.Hubs;
@@ -59,6 +62,15 @@ builder.Services.AddEquipmentModule();
 builder.Services.AddEquipmentInfrastructure();
 builder.Services.AddReportingModule();
 builder.Services.AddReportingInfrastructure();
+
+// ---------- 模块间集成事件订阅（Outbox 异步投递）----------
+// 检验不合格 → 自动发起 Andon 呼叫（设备模块）；质量模块无需反向依赖设备模块
+builder.Services.AddIntegrationEvent<InspectionJudgedEvent, InspectionJudgedEventHandler>();
+
+// ---------- 让工作单元收集到全部模块 DbContext ----------
+// EF 的 AddDbContext<T> 只注册具体类型，不会注册 DbContext 基类；
+// 不补这一步，UnitOfWorkFilter 的 GetServices<DbContext>() 会拿到空集合，跨模块事务形同虚设。
+QiaoMES.Infrastructure.UnitOfWork.UnitOfWorkExtensions.RegisterDbContexts(builder.Services);
 
 // ---------- 控制器注册（集中配置 + 全局工作单元过滤器） ----------
 builder.Services.AddControllers()
@@ -184,12 +196,14 @@ using (var scope = app.Services.CreateScope())
     var qualityDb = services.GetRequiredService<QualityDbContext>();
     var equipmentDb = services.GetRequiredService<EquipmentDbContext>();
     var reportingDb = services.GetRequiredService<ReportingDbContext>();
+    var outboxDb = services.GetRequiredService<OutboxDbContext>();
     await identityDb.Database.MigrateAsync();
     await productionDb.Database.MigrateAsync();
     await masterDataDb.Database.MigrateAsync();
     await qualityDb.Database.MigrateAsync();
     await equipmentDb.Database.MigrateAsync();
     await reportingDb.Database.MigrateAsync();
+    await outboxDb.Database.MigrateAsync();
 
     var passwordHasher = services.GetRequiredService<IPasswordHasher>();
     await IdentityDbSeeder.SeedAsync(identityDb, passwordHasher);

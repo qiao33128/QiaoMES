@@ -124,4 +124,31 @@ public static class UnitOfWorkExtensions
         builder.Services.Configure<MvcOptions>(options => options.Filters.Add<UnitOfWorkFilter>());
         return builder;
     }
+
+    /// <summary>
+    /// 把所有已注册的 <see cref="DbContext"/> 派生类型补注册为 <see cref="DbContext"/> 服务。<para>
+    /// 🔴 必须调用：EF 的 <c>AddDbContext&lt;T&gt;</c> 只注册具体类型 T，**不会**注册 <see cref="DbContext"/> 基类，
+    /// 因此 <see cref="UnitOfWorkFilter"/> 里的 <c>GetServices&lt;DbContext&gt;()</c> 会拿到空集合，事务形同虚设。
+    /// 在全部模块注册完成后调用本方法，才能真正做到「一个请求一个事务、跨模块统一提交」。
+    /// </para>
+    /// </summary>
+    public static IServiceCollection RegisterDbContexts(this IServiceCollection services)
+    {
+        var contextTypes = services
+            .Where(descriptor => typeof(DbContext).IsAssignableFrom(descriptor.ServiceType)
+                                 && descriptor.ServiceType != typeof(DbContext))
+            .Select(descriptor => descriptor.ServiceType)
+            .Distinct()
+            .ToList();
+
+        foreach (var contextType in contextTypes)
+        {
+            services.Add(new ServiceDescriptor(
+                typeof(DbContext),
+                serviceProvider => serviceProvider.GetRequiredService(contextType),
+                ServiceLifetime.Scoped));
+        }
+
+        return services;
+    }
 }
