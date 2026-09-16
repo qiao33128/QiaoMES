@@ -38,6 +38,13 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    # 小内存服务器（如 1GB 轻量机）调优：限制共享缓冲与连接数，避免把内存吃满
+    command: >
+      postgres
+      -c shared_buffers=64MB
+      -c max_connections=50
+      -c effective_cache_size=256MB
+      -c work_mem=4MB
     networks:
       - qiaomes-net
 
