@@ -1,0 +1,84 @@
+# ============================================================
+# QiaoMES · TCR 镜像部署编排（服务器 / 团队环境）
+#
+# 用法：
+#   docker compose -f docker-compose.tcr.yml up -d
+#
+# 前置：先把镜像推到镜像仓（只需在有源码的机器上执行一次）
+#   docker login ccr.ccs.tencentyun.com
+#   docker tag qiaomes-api ccr.ccs.tencentyun.com/qiaoqiao11/qiaomes-api:latest
+#   docker tag qiaomes-web ccr.ccs.tencentyun.com/qiaoqiao11/qiaomes-web:latest
+#   docker push ccr.ccs.tencentyun.com/qiaoqiao11/qiaomes-api:latest
+#   docker push ccr.ccs.tencentyun.com/qiaoqiao11/qiaomes-web:latest
+#
+# 与 docker-compose.yml 的区别：本文件用 image: 直接拉镜像，**不在本地构建**，
+# 因此服务器上无需 .NET SDK / Node 环境，启动更快。
+#
+# 可用环境变量覆盖镜像地址与密钥：
+#   QIAOMES_API_IMAGE / QIAOMES_WEB_IMAGE / JWT_SECRET_KEY / POSTGRES_PASSWORD
+# ============================================================
+
+services:
+  # ---------- PostgreSQL 数据库 ----------
+  postgres:
+    image: postgres:16-alpine
+    container_name: qiaomes-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: qiaomes
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-qiaomes_dev}
+      POSTGRES_DB: qiaomes
+      TZ: Asia/Shanghai
+    ports:
+      - "5432:5432"
+    volumes:
+      - qiaomes_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qiaomes -d qiaomes"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - qiaomes-net
+
+  # ---------- 后端 API（TCR 镜像）----------
+  api:
+    image: ${QIAOMES_API_IMAGE:-ccr.ccs.tencentyun.com/qiaoqiao11/qiaomes-api:latest}
+    container_name: qiaomes-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      # 全部模块共用同一连接，才能把跨模块写入放进同一个事务
+      ConnectionStrings__DefaultDb: Host=postgres;Port=5432;Database=qiaomes;Username=qiaomes;Password=${POSTGRES_PASSWORD:-qiaomes_dev}
+      # 生产环境务必通过环境变量传入自己的密钥（至少 32 字符）
+      Jwt__SecretKey: ${JWT_SECRET_KEY:-QiaoMES_Prod_Secret_Change_Me_At_Least_32_Chars_0123456789}
+      Jwt__Issuer: QiaoMES
+      Jwt__Audience: QiaoMES.Api
+      # 前端对外访问地址（按实际域名 / 端口调整）
+      Cors__Origins: ${CORS_ORIGINS:-http://localhost:8080}
+    expose:
+      - "8080"
+    networks:
+      - qiaomes-net
+
+  # ---------- 前端（Nginx 托管静态文件 + 反代 API，TCR 镜像）----------
+  web:
+    image: ${QIAOMES_WEB_IMAGE:-ccr.ccs.tencentyun.com/qiaoqiao11/qiaomes-web:latest}
+    container_name: qiaomes-web
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    networks:
+      - qiaomes-net
+
+volumes:
+  qiaomes_pgdata:
+
+networks:
+  qiaomes-net:
+    driver: bridge

@@ -40,7 +40,33 @@ QiaoMES/
 └── frontend/                   # Vue 3 前端
 ```
 
-## 快速开始（Docker 一键部署，推荐）
+## 快速开始
+
+### 两种部署方式
+
+```bash
+# 方式一：本地构建（开发机，改完代码必须带 --build，否则跑的还是旧镜像）
+docker compose up -d --build
+
+# 方式二：TCR 镜像（服务器 / 团队环境，无需 .NET SDK 与 Node，启动更快）
+docker compose -f docker-compose.tcr.yml up -d
+```
+
+方式二的镜像来自腾讯云 TCR，更新流程（在有源码的机器上执行）：
+
+```bash
+docker login ccr.ccs.tencentyun.com
+docker build -t ccr.ccs.tencentyun.com/qiaoqiao11/qiaomes-api:latest -f src/QiaoMES.Api/Dockerfile .
+docker build -t ccr.ccs.tencentyun.com/qiaoqiao11/qiaomes-web:latest -f frontend/Dockerfile .
+docker push ccr.ccs.tencentyun.com/qiaoqiao11/qiaomes-api:latest
+docker push ccr.ccs.tencentyun.com/qiaoqiao11/qiaomes-web:latest
+```
+
+可用环境变量覆盖：`QIAOMES_API_IMAGE` / `QIAOMES_WEB_IMAGE` / `JWT_SECRET_KEY` / `POSTGRES_PASSWORD` / `WEB_PORT` / `CORS_ORIGINS`。
+
+> ⚠️ **两个常见坑**
+> 1. 改完代码没加 `--build` → 跑的还是旧镜像（表现为前端页面/菜单是旧的）。
+> 2. 日志出现 `Npgsql 42703 column xxx does not exist` → 库表结构与代码不一致（旧 volume 缺 `__EFMigrationsHistory`）。先 `pg_dump -Fc` 备份，再 `docker compose down -v` + `up -d --build` 让迁移从头应用。（Docker 一键部署，推荐）
 
 整个系统（PostgreSQL + 后端 + 前端）通过 Docker Compose 一条命令启动：
 
