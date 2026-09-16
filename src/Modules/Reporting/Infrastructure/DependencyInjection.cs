@@ -17,6 +17,10 @@ public static class DependencyInjection
         services.AddScoped<IShiftRepository, ShiftRepository>();
         services.AddScoped<ICalendarRepository, CalendarRepository>();
         services.AddScoped<IMetricsService, MetricsService>();
+        services.AddScoped<IMetricsAggregator, MetricsAggregator>();
+
+        // 预聚合滚动重算（每 5 分钟刷新「昨天 + 今天」，覆盖跨天夜班）
+        services.AddHostedService<MetricsAggregationWorker>();
 
         return services;
     }

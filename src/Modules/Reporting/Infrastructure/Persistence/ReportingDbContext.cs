@@ -12,6 +12,9 @@ public class ReportingDbContext(DbContextOptions<ReportingDbContext> options) : 
     public DbSet<ShiftDefinition> Shifts => Set<ShiftDefinition>();
     public DbSet<CalendarDay> CalendarDays => Set<CalendarDay>();
 
+    /// <summary>日 / 班次预聚合指标（看板与报表的读路径）。</summary>
+    public DbSet<DailyShiftMetric> DailyShiftMetrics => Set<DailyShiftMetric>();
+
     // ---- 只读投影：映射其它模块的表做 SQL 级聚合，不参与本模块迁移 ----
     public DbSet<WorkOrderReadModel> WorkOrders => Set<WorkOrderReadModel>();
     public DbSet<WorkOrderOperationReadModel> WorkOrderOperations => Set<WorkOrderOperationReadModel>();
@@ -85,6 +88,17 @@ public class ReportingDbContext(DbContextOptions<ReportingDbContext> options) : 
             entity.HasKey(x => x.Id);
             entity.HasIndex(x => x.InspectionId);
         });
+
+        // ---------- 日 / 班次预聚合指标（看板与报表的读路径）----------
+        var dailyShiftMetric = modelBuilder.Entity<DailyShiftMetric>();
+        dailyShiftMetric.ToTable("daily_shift_metrics");
+        dailyShiftMetric.HasKey(m => m.Id);
+        dailyShiftMetric.Property(m => m.ShiftCode).HasMaxLength(50).IsRequired();
+        dailyShiftMetric.Property(m => m.ShiftName).HasMaxLength(100).IsRequired();
+        dailyShiftMetric.Property(m => m.LineName).HasMaxLength(100).IsRequired();
+        dailyShiftMetric.HasIndex(m => new { m.ProductionDate, m.ShiftCode, m.LineName }).IsUnique();
+        dailyShiftMetric.HasIndex(m => m.ProductionDate);
+        dailyShiftMetric.HasQueryFilter(m => !m.IsDeleted);
 
         base.OnModelCreating(modelBuilder);
     }

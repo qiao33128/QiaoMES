@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using QiaoMES.Reporting.Application;
 using QiaoMES.Reporting.Application.Contracts;
+using QiaoMES.Reporting.Domain;
 using QiaoMES.Reporting.Infrastructure.Persistence;
 using QiaoMES.Shared;
 
@@ -9,7 +10,10 @@ namespace QiaoMES.Reporting.Infrastructure;
 /// <summary>
 /// 指标体系实现：以「生产日 + 班次」为统一口径，直接对只读投影做 SQL 级聚合。
 /// </summary>
-public class MetricsService(ReportingDbContext db, IShiftService shiftService) : IMetricsService
+public class MetricsService(
+    ReportingDbContext db,
+    IShiftService shiftService,
+    IMetricsAggregator aggregator) : IMetricsService
 {
     // 枚举值对齐各业务模块（避免跨模块引用 Domain）
     private const int EquipmentDown = 2;          // EquipmentStatus.Down
@@ -24,6 +28,13 @@ public class MetricsService(ReportingDbContext db, IShiftService shiftService) :
         CancellationToken cancellationToken = default)
     {
         var window = await ResolveWindowAsync(request, cancellationToken);
+
+        // 优先读预聚合：可用率/性能/良率所需分量都在汇总行里，命中即「读几十行」
+        var precomputed = await TryReadPrecomputedAsync(window, request.LineName, cancellationToken);
+        if (precomputed is not null)
+        {
+            return Result.Success(ComposeOee(window, precomputed));
+        }
 
         var segments = await LoadDowntimeSegmentsAsync(window.StartUtc, window.EndUtc, cancellationToken);
         var downtimeSeconds = segments.Sum(s => s.DurationSeconds);
@@ -91,6 +102,34 @@ public class MetricsService(ReportingDbContext db, IShiftService shiftService) :
         CancellationToken cancellationToken = default)
     {
         var window = await ResolveWindowAsync(request, cancellationToken);
+
+        // 优先读预聚合：100 万行 SN 下，实时区间聚合 P95 约 384ms，读汇总表为个位数毫秒
+        var precomputed = await TryReadPrecomputedAsync(window, request.LineName, cancellationToken);
+        if (precomputed is not null)
+        {
+            return Result.Success(new ShiftMetricsReportDto(
+                precomputed
+                    .OrderBy(m => m.ProductionDate)
+                    .ThenBy(m => m.ShiftCode)
+                    .Select(m => new ShiftMetricsDto(
+                        m.ProductionDate,
+                        m.ShiftCode,
+                        m.ShiftName,
+                        string.IsNullOrEmpty(m.LineName) ? null : m.LineName,
+                        m.StartAtUtc,
+                        m.EndAtUtc,
+                        m.TotalSn,
+                        m.CompletedSn,
+                        m.ScrappedSn,
+                        m.YieldRate,
+                        m.InspectionTotal,
+                        m.InspectionPassed,
+                        m.InspectionFailed,
+                        m.Fpy))
+                    .ToList(),
+                DateTime.UtcNow));
+        }
+
         var items = new List<ShiftMetricsDto>();
 
         foreach (var range in window.Ranges)
@@ -265,6 +304,77 @@ public class MetricsService(ReportingDbContext db, IShiftService shiftService) :
     }
 
     // ---------------- 内部实现 ----------------
+
+    /// <summary>
+    /// 读预聚合汇总：**必须完整覆盖请求范围内的每一个班次**才返回，否则返回 null 让调用方回退实时聚合
+    /// （宁可算慢一点，也不给缺班次的不完整报表）。
+    /// </summary>
+    private async Task<IReadOnlyList<DailyShiftMetric>?> TryReadPrecomputedAsync(
+        MetricsWindow window,
+        string? lineName,
+        CancellationToken cancellationToken)
+    {
+        if (window.Ranges.Count == 0)
+        {
+            return null;
+        }
+
+        var metrics = await aggregator.QueryAsync(window.From, window.To, lineName, cancellationToken);
+        if (metrics.Count == 0)
+        {
+            return null;
+        }
+
+        foreach (var range in window.Ranges)
+        {
+            var hit = metrics.Any(m => m.ProductionDate == range.ProductionDate && m.ShiftCode == range.ShiftCode);
+            if (!hit)
+            {
+                return null;
+            }
+        }
+
+        return metrics;
+    }
+
+    /// <summary>由预聚合行合成 OEE（与实时口径完全一致）。</summary>
+    private static OeeReportDto ComposeOee(MetricsWindow window, IReadOnlyList<DailyShiftMetric> metrics)
+    {
+        var plannedSeconds = metrics.Sum(m => m.PlannedHours) * 3600;
+        var downtimeSeconds = metrics.Sum(m => m.DowntimeSeconds);
+        var runSeconds = Math.Max(plannedSeconds - downtimeSeconds, 0);
+
+        var completedSn = metrics.Sum(m => m.CompletedSn);
+        var scrappedSn = metrics.Sum(m => m.ScrappedSn);
+        var theoreticalSeconds = metrics.Sum(m => m.TheoreticalSeconds);
+        var actualSeconds = metrics.Sum(m => m.ActualSeconds);
+
+        var availability = plannedSeconds > 0
+            ? Math.Round((decimal)(runSeconds / plannedSeconds) * 100m, 2)
+            : 0m;
+        var performance = actualSeconds > 0
+            ? Math.Min(100m, Math.Round((decimal)theoreticalSeconds / actualSeconds * 100m, 2))
+            : 0m;
+        var quality = completedSn + scrappedSn > 0
+            ? Math.Round((decimal)completedSn / (completedSn + scrappedSn) * 100m, 2)
+            : 0m;
+
+        return new OeeReportDto(
+            window.From,
+            window.To,
+            Math.Round(metrics.Sum(m => m.PlannedHours), 2),
+            Math.Round(downtimeSeconds / 3600d, 2),
+            Math.Round(runSeconds / 3600d, 2),
+            availability,
+            performance,
+            quality,
+            Math.Round(availability * performance * quality / 10000m, 2),
+            metrics.Sum(m => m.TotalSn),
+            completedSn,
+            scrappedSn,
+            theoreticalSeconds,
+            actualSeconds);
+    }
 
     private sealed record MetricsWindow(
         DateOnly From,

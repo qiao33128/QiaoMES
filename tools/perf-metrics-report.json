@@ -1,0 +1,37 @@
+{
+  "generatedAt": "2026-09-16T09:01:07.2701130+08:00",
+  "range": {
+    "days": 7,
+    "to": "2026-09-16",
+    "from": "2026-09-09"
+  },
+  "seedCount": 1000000,
+  "realtimeAggregation": {
+    "iterations": 15,
+    "p50Ms": 1153,
+    "p95Ms": 1479,
+    "maxMs": 1479,
+    "meanMs": 1186.9
+  },
+  "precomputedRead": {
+    "iterations": 15,
+    "p50Ms": 11,
+    "p95Ms": 16,
+    "maxMs": 16,
+    "meanMs": 11.1
+  },
+  "oeePrecomputedRead": {
+    "iterations": 15,
+    "p50Ms": 9,
+    "p95Ms": 24,
+    "maxMs": 24,
+    "meanMs": 10.6
+  },
+  "p95Speedup": 92.4,
+  "rebuild": {
+    "from": "2026-09-09",
+    "to": "2026-09-16",
+    "shiftsRebuilt": 144,
+    "lastComputedAt": "2026-09-16T01:01:06.83462Z"
+  }
+}

@@ -5,6 +5,7 @@ using QiaoMES.Infrastructure.Authorization;
 using QiaoMES.Infrastructure.Http;
 using QiaoMES.Reporting.Application;
 using QiaoMES.Reporting.Application.Contracts;
+using QiaoMES.Reporting.Infrastructure;
 using QiaoMES.Shared.Authorization;
 
 namespace QiaoMES.Reporting.Api.Controllers;
@@ -15,8 +16,32 @@ namespace QiaoMES.Reporting.Api.Controllers;
 [ApiController]
 [Route("api/reports")]
 [Authorize]
-public class ReportsController(IMetricsService service) : ControllerBase
+public class ReportsController(
+    IMetricsService service,
+    IMetricsAggregator aggregator) : ControllerBase
 {
+    /// <summary>
+    /// 手动重算预聚合汇总（历史日期补齐 / 数据修正后刷新）。<para>
+    /// 看板与报表默认读 `daily_shift_metrics`，未覆盖时自动回退实时聚合。
+    /// </para>
+    /// </summary>
+    [HttpPost("rebuild-metrics")]
+    [HasPermission(Permissions.Reporting.Manage)]
+    public async Task<IActionResult> RebuildMetrics(
+        [FromQuery] DateOnly? from = null,
+        [FromQuery] DateOnly? to = null,
+        [FromQuery] string? lineName = null,
+        CancellationToken cancellationToken = default)
+    {
+        var end = to ?? DateOnly.FromDateTime(DateTime.Now);
+        var start = from ?? end.AddDays(-6);
+
+        var shifts = await aggregator.RebuildAsync(start, end, lineName, cancellationToken);
+        var lastComputedAt = await aggregator.GetLastComputedAtAsync(cancellationToken);
+
+        return Ok(new { from = start, to = end, shiftsRebuilt = shifts, lastComputedAt });
+    }
+
     /// <summary>OEE = 可用率 × 性能 × 良率（计划时间按班次与生产日历推算）。</summary>
     [HttpGet("oee")]
     [HasPermission(Permissions.Reporting.Read)]
