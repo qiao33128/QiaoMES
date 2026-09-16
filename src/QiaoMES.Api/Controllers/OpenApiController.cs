@@ -3,6 +3,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using QiaoMES.Infrastructure.Http;
 using QiaoMES.Infrastructure.Integrations;
+using QiaoMES.MasterData.Application;
+using QiaoMES.MasterData.Application.Contracts;
+using QiaoMES.MasterData.Domain;
 using QiaoMES.Production.Application;
 using QiaoMES.Production.Application.Contracts;
 using QiaoMES.Shared;
@@ -42,6 +45,9 @@ public record EquipmentTelemetryRequest(
 [EnableRateLimiting(IntegrationExtensions.OpenApiRateLimitPolicy)]
 public class OpenApiController(
     IWorkOrderService workOrderService,
+    IProductService productService,
+    IMaterialService materialService,
+    IBomService bomService,
     IOutboxWriter outboxWriter) : ControllerBase
 {
     /// <summary>
@@ -139,4 +145,174 @@ public class OpenApiController(
 
         return Accepted(new { accepted = true, applied = "async" });
     }
+
+    // ---------------- 主数据交换（产品 / 物料 / BOM）----------------
+
+    /// <summary>
+    /// 产品编码 → 产品 Id 映射。<para>ERP 下发工单前先用本接口把内部编码换成 ProductId（工单接口要求 ProductId）。</para>
+    /// </summary>
+    [HttpGet("products")]
+    public async Task<IActionResult> GetProducts(
+        [FromQuery] string? keyword = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await productService.GetListAsync(new CatalogQueryRequest(page, pageSize, keyword), cancellationToken);
+
+        return result.IsFailure
+            ? ApiResults.Problem(result.Error)
+            : Ok(new { totalCount = result.Value.TotalCount, items = result.Value.Items });
+    }
+
+    /// <summary>物料查询（编码映射 / 对账）。</summary>
+    [HttpGet("materials")]
+    public async Task<IActionResult> GetMaterials(
+        [FromQuery] string? keyword = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await materialService.GetListAsync(new CatalogQueryRequest(page, pageSize, keyword), cancellationToken);
+
+        return result.IsFailure
+            ? ApiResults.Problem(result.Error)
+            : Ok(new { totalCount = result.Value.TotalCount, items = result.Value.Items });
+    }
+
+    /// <summary>
+    /// 物料下发。<para>**幂等键 = 物料编码**：编码已存在直接返回既有物料，不会重复建档。</para>
+    /// </summary>
+    [HttpPost("materials")]
+    public async Task<IActionResult> ImportMaterial(
+        [FromBody] ImportMaterialRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.Code) || string.IsNullOrWhiteSpace(request.Name))
+        {
+            return ApiResults.Problem(Error.Validation("OpenApi.InvalidMaterial", "物料编码与名称不能为空"));
+        }
+
+        var code = request.Code.Trim();
+        var existing = await materialService.GetListAsync(new CatalogQueryRequest(1, 5, code), cancellationToken);
+        if (existing.IsFailure)
+        {
+            return ApiResults.Problem(existing.Error);
+        }
+
+        var matched = existing.Value.Items.FirstOrDefault(item =>
+            string.Equals(item.Code, code, StringComparison.OrdinalIgnoreCase));
+
+        if (matched is not null)
+        {
+            return Ok(new { idempotent = true, material = matched });
+        }
+
+        var created = await materialService.CreateAsync(
+            new CreateMaterialRequest(
+                code,
+                request.Name,
+                (MaterialType)Math.Clamp(request.MaterialType, 0, 4),
+                request.SupplierPartNumber,
+                request.Spec,
+                request.Unit,
+                request.Remark),
+            cancellationToken);
+
+        if (created.IsFailure)
+        {
+            return ApiResults.Problem(created.Error);
+        }
+
+        return StatusCode(StatusCodes.Status201Created, new { idempotent = false, material = created.Value });
+    }
+
+    /// <summary>BOM 查询（按产品 / 版本关键字）。</summary>
+    [HttpGet("boms")]
+    public async Task<IActionResult> GetBoms(
+        [FromQuery] Guid? productId = null,
+        [FromQuery] string? keyword = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await bomService.GetListAsync(
+            new BomQueryRequest(productId, null, keyword, page, pageSize), cancellationToken);
+
+        return result.IsFailure
+            ? ApiResults.Problem(result.Error)
+            : Ok(new { totalCount = result.Value.TotalCount, items = result.Value.Items });
+    }
+
+    /// <summary>
+    /// BOM 下发。<para>**幂等键 = 产品 + 版本**：同产品同版本已存在则返回既有 BOM，不会重复建版本。</para>
+    /// </summary>
+    [HttpPost("boms")]
+    public async Task<IActionResult> ImportBom(
+        [FromBody] ImportBomRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request.ProductId == Guid.Empty || string.IsNullOrWhiteSpace(request.Version))
+        {
+            return ApiResults.Problem(Error.Validation("OpenApi.InvalidBom", "ProductId 与版本号不能为空"));
+        }
+        if (request.Items is null || request.Items.Count == 0)
+        {
+            return ApiResults.Problem(Error.Validation("OpenApi.EmptyBomItems", "BOM 明细不能为空"));
+        }
+
+        var version = request.Version.Trim();
+        var existing = await bomService.GetListAsync(
+            new BomQueryRequest(request.ProductId, null, version, 1, 10), cancellationToken);
+
+        if (existing.IsFailure)
+        {
+            return ApiResults.Problem(existing.Error);
+        }
+
+        var matched = existing.Value.Items.FirstOrDefault(bom =>
+            string.Equals(bom.Version, version, StringComparison.OrdinalIgnoreCase));
+
+        if (matched is not null)
+        {
+            return Ok(new { idempotent = true, bom = matched });
+        }
+
+        var created = await bomService.CreateAsync(
+            new CreateBomRequest(
+                request.ProductId,
+                version,
+                request.Remark,
+                request.Items
+                    .Select(item => new BomItemRequest(item.MaterialId, item.Quantity, item.Unit, item.LossRate))
+                    .ToList()),
+            cancellationToken);
+
+        if (created.IsFailure)
+        {
+            return ApiResults.Problem(created.Error);
+        }
+
+        return StatusCode(StatusCodes.Status201Created, new { idempotent = false, bom = created.Value });
+    }
 }
+
+/// <summary>物料下发（幂等键 = 物料编码）。</summary>
+/// <param name="MaterialType">0 原材料 / 1 半成品 / 2 成品 / 3 包装 / 4 辅料。</param>
+public record ImportMaterialRequest(
+    string Code,
+    string Name,
+    int MaterialType = 0,
+    string? SupplierPartNumber = null,
+    string? Spec = null,
+    string? Unit = null,
+    string? Remark = null);
+
+public record ImportBomItemRequest(Guid MaterialId, decimal Quantity, string? Unit = null, decimal LossRate = 0);
+
+/// <summary>BOM 下发（幂等键 = 产品 + 版本）。</summary>
+public record ImportBomRequest(
+    Guid ProductId,
+    string Version,
+    string? Remark = null,
+    IReadOnlyList<ImportBomItemRequest>? Items = null);

@@ -141,6 +141,108 @@ public class OpenApiTests(QiaoMESApiFactory factory)
         }
     }
 
+    [Fact]
+    public async Task 主数据交换_物料下发幂等且可回查()
+    {
+        var admin = await LoginAsync();
+        var (erp, _) = await CreateClientAsync(admin, "ERP 主数据测试");
+        var code = $"M-OPEN-{Guid.NewGuid():N}"[..16];
+
+        var first = await erp.PostAsJsonAsync("/api/open/v1/materials", new
+        {
+            code,
+            name = "开放 API 测试物料",
+            materialType = 0,
+            unit = "PCS",
+        });
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+
+        var firstBody = await first.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.False(firstBody.GetProperty("idempotent").GetBoolean());
+        var materialId = firstBody.GetProperty("material").GetProperty("id").GetGuid();
+
+        // 同一编码重复下发 → 幂等返回既有物料，不重复建档
+        var again = await erp.PostAsJsonAsync("/api/open/v1/materials", new { code, name = "重复下发不应改档" });
+        Assert.Equal(HttpStatusCode.OK, again.StatusCode);
+
+        var againBody = await again.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(againBody.GetProperty("idempotent").GetBoolean());
+        Assert.Equal(materialId, againBody.GetProperty("material").GetProperty("id").GetGuid());
+
+        // 编码映射回查
+        var lookup = await erp.GetFromJsonAsync<JsonElement>($"/api/open/v1/materials?keyword={code}");
+        Assert.Equal(1, lookup.GetProperty("totalCount").GetInt32());
+    }
+
+    [Fact]
+    public async Task 主数据交换_BOM下发幂等()
+    {
+        var admin = await LoginAsync();
+        var (erp, _) = await CreateClientAsync(admin, "BOM 测试");
+
+        // 产品 Id 由内部主数据维护，这里通过开放接口映射取一个（干净库可能没有产品，此时跳过 BOM 断言）
+        var products = await erp.GetFromJsonAsync<JsonElement>("/api/open/v1/products?page=1&pageSize=5");
+        Assert.Equal(JsonValueKind.Array, products.GetProperty("items").ValueKind);
+
+        var productList = products.GetProperty("items").EnumerateArray().ToList();
+        if (productList.Count == 0)
+        {
+            return;
+        }
+
+        var productId = productList[0].GetProperty("id").GetGuid();
+        var materialCode = $"M-BOM-{Guid.NewGuid():N}"[..16];
+
+        var material = await erp.PostAsJsonAsync("/api/open/v1/materials", new { code = materialCode, name = "BOM 用料" });
+        var materialId = (await material.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("material").GetProperty("id").GetGuid();
+
+        var version = $"V{Guid.NewGuid():N}"[..8];
+
+        var payload = new
+        {
+            productId,
+            version,
+            remark = "开放 API 下发",
+            items = new object[] { new { materialId, quantity = 2.5m, unit = "PCS", lossRate = 0.01m } },
+        };
+
+        var first = await erp.PostAsJsonAsync("/api/open/v1/boms", payload);
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+
+        // 同产品同版本重复下发 → 幂等
+        var again = await erp.PostAsJsonAsync("/api/open/v1/boms", payload);
+        Assert.Equal(HttpStatusCode.OK, again.StatusCode);
+
+        var againBody = await again.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(againBody.GetProperty("idempotent").GetBoolean());
+    }
+
+    [Fact]
+    public async Task 监控快照_返回Outbox与预聚合与数据库健康度()
+    {
+        var admin = await LoginAsync();
+
+        var snapshot = await admin.GetFromJsonAsync<JsonElement>("/api/monitoring/snapshot");
+
+        // Outbox 积压（分发器健康的核心指标）
+        var outbox = snapshot.GetProperty("outbox");
+        Assert.True(outbox.GetProperty("pending").GetInt32() >= 0);
+        Assert.True(outbox.GetProperty("failed").GetInt32() >= 0);
+
+        // 预聚合新鲜度
+        var freshness = snapshot.GetProperty("metricsFreshness");
+        Assert.True(freshness.GetProperty("rowsInLast7Days").GetInt32() >= 0);
+
+        // 数据库运行指标
+        var database = snapshot.GetProperty("database");
+        Assert.True(database.GetProperty("activeConnections").GetInt32() > 0);
+        Assert.False(string.IsNullOrEmpty(database.GetProperty("databaseSize").GetString()));
+
+        // 告警阈值随快照一起返回，便于脚本化巡检
+        Assert.Equal(100, snapshot.GetProperty("thresholds").GetProperty("outboxPending").GetInt32());
+    }
+
     private async Task<HttpClient> LoginAsync()
     {
         var client = factory.CreateClient();

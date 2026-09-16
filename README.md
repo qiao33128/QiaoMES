@@ -152,6 +152,8 @@ dotnet ef migrations add <名称> \
 - [x] 开放 API 客户端管理：密钥只存 SHA-256 摘要、明文创建时返回一次，可单独停用与设过期
 - [x] 性能与容量（阶段 4）：`tools/perf-probe.ps1` 一键压测（种子生成 / 索引体检 / EXPLAIN / 并发分位），实测报告见 `docs/PERFORMANCE.md`
 - [x] 预聚合汇总表：`reporting.daily_shift_metrics`（生产日 + 班次），报表/看板 P95 从 1479ms 降到 16ms（约 92 倍），后台每 5 分钟滚动重算、未覆盖自动回退实时
+- [x] 主数据交换（开放 API）：产品/物料/BOM 查询与下发，物料按编码、BOM 按「产品 + 版本」幂等
+- [x] 运维可观测性：`/api/monitoring/snapshot` 暴露 Outbox 积压、预聚合新鲜度、数据库指标与告警阈值（零外部依赖）
 - [x] 主数据 CSV 导入导出（产品 / 物料 / 工序 / 工作中心，按编码 upsert）
 - [x] 并发安全的工单号生成（按日递增，数据库原子取号）
 - [x] SignalR 实时生产看板（通知在事务提交后发送）
