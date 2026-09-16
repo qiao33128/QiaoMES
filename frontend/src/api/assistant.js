@@ -20,6 +20,26 @@ export const assistantApi = {
   ask(payload) {
     return http.post('/assistant/ask', payload, { timeout: 240000 })
   },
+
+  // ---------------- 模型配置（需要 assistant:manage） ----------------
+
+  /** 读取生效配置；API Key 只回掩码，明文不出接口 */
+  getConfig() {
+    return http.get('/assistant/config')
+  },
+  /**
+   * 保存配置（保存即生效，无需重启）
+   * @param {{enabled?:boolean, baseUrl?:string, model?:string, apiKey?:string,
+   *          clearApiKey?:boolean, llmTimeoutSeconds?:number, maxRows?:number,
+   *          queryTimeoutSeconds?:number, maxRepairAttempts?:number}} payload
+   */
+  saveConfig(payload) {
+    return http.put('/assistant/config', payload)
+  },
+  /** 测试模型连接：发一个最小请求，确认地址 / 密钥 / 模型名可用 */
+  testConfig() {
+    return http.post('/assistant/config/test', null, { timeout: 120000 })
+  },
 }
 
 export const ChartTypeMap = {

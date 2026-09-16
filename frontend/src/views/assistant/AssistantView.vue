@@ -24,6 +24,15 @@
           {{ status.hasDedicatedReadOnlyConnection ? '独立只读连接' : '复用主连接（只读事务兜底）' }}
         </el-tag>
         <el-button link type="primary" :icon="Refresh" @click="loadStatus">刷新</el-button>
+        <el-button
+          v-if="authStore.hasPermission('assistant:manage')"
+          link
+          type="primary"
+          :icon="Setting"
+          @click="openConfig"
+        >
+          模型配置
+        </el-button>
       </div>
     </el-card>
 
@@ -145,21 +154,164 @@
       v-if="!history.length && !asking"
       description="还没有提问记录。上面挑一个示例试试，或者直接输入你的问题。"
     />
+
+    <!-- 模型配置抽屉：保存即生效，不需要重启或重新部署 -->
+    <el-drawer v-model="configVisible" title="智能问数 · 模型配置" size="500px">
+      <div v-loading="configLoading">
+        <el-alert
+          v-if="configMeta.source === 'configuration'"
+          title="当前仍在用 appsettings / 环境变量里的配置。在这里保存过之后，就以这里的为准。"
+          type="info"
+          :closable="false"
+          show-icon
+          class="config-tip"
+        />
+        <el-alert
+          v-else
+          :title="`当前配置来自数据库（最后修改：${configMeta.updatedBy || '-'} · ${formatTime(configMeta.updatedAt)}）`"
+          type="success"
+          :closable="false"
+          show-icon
+          class="config-tip"
+        />
+
+        <el-form label-position="top">
+          <el-form-item label="总开关">
+            <el-switch v-model="configForm.enabled" active-text="启用" inactive-text="关闭" />
+          </el-form-item>
+
+          <el-form-item label="模型地址（OpenAI 兼容）">
+            <el-input v-model="configForm.baseUrl" placeholder="https://api.deepseek.com/v1" />
+            <div class="field-hint">
+              DeepSeek / 通义千问 / Kimi / 硅基流动填各自的 <code>/v1</code> 地址；本地 Ollama 用
+              <code>http://host.docker.internal:11434/v1</code>
+            </div>
+          </el-form-item>
+
+          <el-form-item label="模型名">
+            <el-input v-model="configForm.model" placeholder="deepseek-chat" />
+          </el-form-item>
+
+          <el-form-item label="API Key">
+            <el-input
+              v-model="configForm.apiKey"
+              type="password"
+              show-password
+              :placeholder="
+                configMeta.hasApiKey
+                  ? `已配置 ${configMeta.apiKeyMasked}，留空表示不改动`
+                  : '本地 Ollama 可留空；其它服务需要填写'
+              "
+            />
+            <div class="field-hint">
+              只以掩码回显，明文不会通过接口返回；加密后存库（密钥来自 <code>Jwt:SecretKey</code>）。
+              <el-button
+                v-if="configMeta.hasApiKey"
+                link
+                type="danger"
+                size="small"
+                @click="clearApiKey"
+              >
+                清除密钥
+              </el-button>
+            </div>
+          </el-form-item>
+
+          <el-row :gutter="12">
+            <el-col :span="12">
+              <el-form-item label="模型超时（秒）">
+                <el-input-number v-model="configForm.llmTimeoutSeconds" :min="10" :max="600" :step="10" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="返回行数上限">
+                <el-input-number v-model="configForm.maxRows" :min="1" :max="2000" :step="50" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="SQL 超时（秒）">
+                <el-input-number v-model="configForm.queryTimeoutSeconds" :min="1" :max="300" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="失败自我修复轮数">
+                <el-input-number v-model="configForm.maxRepairAttempts" :min="0" :max="5" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+        </el-form>
+
+        <el-alert
+          v-if="probe"
+          :title="probe.message"
+          :type="probe.ok ? 'success' : 'error'"
+          :closable="false"
+          show-icon
+          class="config-tip"
+        />
+      </div>
+
+      <template #footer>
+        <div style="display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap">
+          <el-button :icon="Connection" :loading="testing" @click="testConfig">测试连接</el-button>
+          <el-button @click="configVisible = false">关闭</el-button>
+          <el-button type="primary" :icon="Check" :loading="saving" @click="saveConfig">
+            保存并生效
+          </el-button>
+        </div>
+      </template>
+    </el-drawer>
   </div>
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
-import { ElMessage } from 'element-plus'
-import { CopyDocument, Delete, Download, Promotion, Refresh } from '@element-plus/icons-vue'
+import { onMounted, reactive, ref } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import {
+  Check,
+  Connection,
+  CopyDocument,
+  Delete,
+  Download,
+  Promotion,
+  Refresh,
+  Setting,
+} from '@element-plus/icons-vue'
 import { assistantApi } from '@/api/assistant'
+import { useAuthStore } from '@/stores/auth'
 import ResultChart from './ResultChart.vue'
+
+const authStore = useAuthStore()
 
 const status = ref(null)
 const question = ref('')
 const asking = ref(false)
 const followUp = ref(false)
 const history = ref([])
+
+// ---------- 模型配置 ----------
+const configVisible = ref(false)
+const configLoading = ref(false)
+const saving = ref(false)
+const testing = ref(false)
+const probe = ref(null)
+const configMeta = ref({
+  hasApiKey: false,
+  apiKeyMasked: null,
+  source: 'configuration',
+  updatedAt: null,
+  updatedBy: null,
+})
+const configForm = reactive({
+  enabled: true,
+  baseUrl: '',
+  model: '',
+  apiKey: '',
+  llmTimeoutSeconds: 90,
+  maxRows: 200,
+  queryTimeoutSeconds: 15,
+  maxRepairAttempts: 2,
+})
 
 const examples = [
   '最近 7 天每条产线的良率是多少？',
@@ -214,6 +366,93 @@ async function ask(text) {
     asking.value = false
   }
 }
+
+// ---------- 模型配置 ----------
+
+function applyConfig(data) {
+  configForm.enabled = data.enabled
+  configForm.baseUrl = data.baseUrl || ''
+  configForm.model = data.model || ''
+  configForm.apiKey = '' // 明文永不下发，留空表示不改动
+  configForm.llmTimeoutSeconds = data.llmTimeoutSeconds
+  configForm.maxRows = data.maxRows
+  configForm.queryTimeoutSeconds = data.queryTimeoutSeconds
+  configForm.maxRepairAttempts = data.maxRepairAttempts
+  configMeta.value = {
+    hasApiKey: data.hasApiKey,
+    apiKeyMasked: data.apiKeyMasked,
+    source: data.source,
+    updatedAt: data.updatedAt,
+    updatedBy: data.updatedBy,
+  }
+}
+
+async function openConfig() {
+  configVisible.value = true
+  probe.value = null
+  configLoading.value = true
+  try {
+    applyConfig(await assistantApi.getConfig())
+  } catch {
+    ElMessage.error('读取模型配置失败')
+  } finally {
+    configLoading.value = false
+  }
+}
+
+async function saveConfig() {
+  saving.value = true
+  try {
+    // apiKey 为空 → 让后端沿用现有密钥（只改模型名不会把 Key 抹掉）
+    const saved = await assistantApi.saveConfig({
+      ...configForm,
+      apiKey: configForm.apiKey ? configForm.apiKey : null,
+    })
+    applyConfig(saved)
+    ElMessage.success('已保存并立即生效（无需重启）')
+    await loadStatus()
+  } finally {
+    saving.value = false
+  }
+}
+
+async function clearApiKey() {
+  await ElMessageBox.confirm(
+    '清除后智能问数将无法调用大模型（会变成"未配置模型"状态），确定清除吗？',
+    '提示',
+    { confirmButtonText: '清除', cancelButtonText: '取消', type: 'warning' },
+  )
+  saving.value = true
+  try {
+    applyConfig(await assistantApi.saveConfig({ clearApiKey: true }))
+    ElMessage.success('密钥已清除')
+    await loadStatus()
+  } finally {
+    saving.value = false
+  }
+}
+
+async function testConfig() {
+  testing.value = true
+  probe.value = null
+  try {
+    probe.value = await assistantApi.testConfig()
+    if (probe.value.ok) {
+      ElMessage.success('连接正常')
+    }
+  } finally {
+    testing.value = false
+  }
+}
+
+function formatTime(value) {
+  if (!value) {
+    return '-'
+  }
+  return String(value).replace('T', ' ').slice(0, 19)
+}
+
+// ---------- 结果呈现 ----------
 
 /** 结果集 → el-table 需要的对象数组（列名做 key）。 */
 function toObjects(answer) {
@@ -364,5 +603,23 @@ onMounted(loadStatus)
   white-space: pre-wrap;
   word-break: break-all;
   color: #303133;
+}
+
+.config-tip {
+  margin-bottom: 14px;
+}
+
+.field-hint {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #909399;
+}
+
+.field-hint code {
+  padding: 0 4px;
+  border-radius: 3px;
+  background: #f0f2f5;
+  color: #606266;
 }
 </style>

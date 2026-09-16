@@ -40,6 +40,7 @@ public static class PermissionCatalog
         new("角色", Permissions.Roles.Manage, "管理角色"),
         new("智能问数", Permissions.Assistant.Read, "查看问数状态与语义层"),
         new("智能问数", Permissions.Assistant.Ask, "用中文提问查数(消耗大模型额度)"),
+        new("智能问数", Permissions.Assistant.Manage, "维护模型配置(地址 / 模型名 / API Key)"),
     ];
 
     /// <summary>按分组归集，便于前端直接渲染。</summary>

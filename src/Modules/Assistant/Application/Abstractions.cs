@@ -36,6 +36,12 @@ public interface ISqlGenerator
         string failedSql,
         string error,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 用当前配置发一个最小请求,验证「地址 / 密钥 / 模型名」是否真的可用。
+    /// <para>给「模型配置」页的「测试连接」按钮用 —— 配完 Key 立刻能确认对不对,不用先问一个问题。</para>
+    /// </summary>
+    Task<AssistantProbeResult> PingAsync(CancellationToken cancellationToken = default);
 }
 
 /// <summary>只读执行器:以 <c>READ ONLY</c> 事务跑 SQL,带超时与结果集上界。</summary>

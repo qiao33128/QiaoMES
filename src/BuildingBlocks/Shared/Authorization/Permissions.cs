@@ -89,6 +89,9 @@ public static class Permissions
 
         /// <summary>发起提问(会调用大模型并执行只读 SQL,有成本)。</summary>
         public const string Ask = "assistant:ask";
+
+        /// <summary>维护模型配置(BaseUrl / 模型名 / API Key 等)。仅管理员应持有。</summary>
+        public const string Manage = "assistant:manage";
     }
 
     /// <summary>角色管理权限。</summary>

@@ -8,6 +8,7 @@ public static class DependencyInjection
     public static IServiceCollection AddAssistantModule(this IServiceCollection services)
     {
         services.AddScoped<IAssistantService, AssistantService>();
+        services.AddScoped<IAssistantConfigService, AssistantConfigService>();
         return services;
     }
 

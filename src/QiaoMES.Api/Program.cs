@@ -237,6 +237,7 @@ using (var scope = app.Services.CreateScope())
     var reportingDb = services.GetRequiredService<ReportingDbContext>();
     var outboxDb = services.GetRequiredService<OutboxDbContext>();
     var integrationDb = services.GetRequiredService<IntegrationDbContext>();
+    var assistantDb = services.GetRequiredService<QiaoMES.Assistant.Infrastructure.Persistence.AssistantDbContext>();
     await identityDb.Database.MigrateAsync();
     await productionDb.Database.MigrateAsync();
     await masterDataDb.Database.MigrateAsync();
@@ -245,6 +246,12 @@ using (var scope = app.Services.CreateScope())
     await reportingDb.Database.MigrateAsync();
     await outboxDb.Database.MigrateAsync();
     await integrationDb.Database.MigrateAsync();
+    await assistantDb.Database.MigrateAsync();
+
+    // 智能问数：把库里保存的模型配置应用到运行时（没有配置行就沿用 appsettings / 环境变量）。
+    // 必须在迁移之后 —— 否则首次部署时表还不存在。
+    await services.GetRequiredService<QiaoMES.Assistant.Application.IAssistantSettingsStore>()
+        .ApplyPersistedAsync();
 
     var passwordHasher = services.GetRequiredService<IPasswordHasher>();
     await IdentityDbSeeder.SeedAsync(identityDb, passwordHasher);

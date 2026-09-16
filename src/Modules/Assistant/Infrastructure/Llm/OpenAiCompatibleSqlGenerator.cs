@@ -80,6 +80,62 @@ public sealed class OpenAiCompatibleSqlGenerator(
         return AskAsync(prompt.ToString(), cancellationToken);
     }
 
+    /// <summary>
+    /// 最小连通性探测：只发一条 <c>ping</c>、只要 1 个 token。
+    /// <para>比"随便问个问题"更省额度，也更直接地回答「我的 Key / 地址 / 模型名配对了没」。</para>
+    /// </summary>
+    public async Task<AssistantProbeResult> PingAsync(CancellationToken cancellationToken = default)
+    {
+        var payload = new
+        {
+            model = options.Llm.Model,
+            temperature = 0,
+            max_tokens = 1,
+            messages = new object[] { new { role = "user", content = "ping" } },
+        };
+
+        try
+        {
+            using var httpRequest = new HttpRequestMessage(HttpMethod.Post, BuildEndpoint());
+            httpRequest.Content = new StringContent(
+                JsonSerializer.Serialize(payload, JsonOptions), Encoding.UTF8, "application/json");
+
+            if (!string.IsNullOrWhiteSpace(options.Llm.ApiKey))
+            {
+                httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.Llm.ApiKey);
+            }
+
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(TimeSpan.FromSeconds(Math.Clamp(options.Llm.TimeoutSeconds, 10, 600)));
+
+            using var response = await httpClient.SendAsync(httpRequest, cts.Token);
+            var body = await response.Content.ReadAsStringAsync(cts.Token);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var detail = body.Length > 300 ? body[..300] : body;
+                return new AssistantProbeResult(
+                    false,
+                    $"模型返回 HTTP {(int)response.StatusCode}：{detail}",
+                    options.Llm.Model);
+            }
+
+            return new AssistantProbeResult(true, $"连接成功，模型「{options.Llm.Model}」可用。", options.Llm.Model);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return new AssistantProbeResult(
+                false,
+                $"连接超时（超过 {options.Llm.TimeoutSeconds} 秒），请检查模型地址与网络出口。",
+                options.Llm.Model);
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "智能问数：测试模型连接失败");
+            return new AssistantProbeResult(false, $"连接失败：{exception.Message}", options.Llm.Model);
+        }
+    }
+
     private static string BuildUserPrompt(SqlGenerationRequest request)
     {
         var prompt = new StringBuilder();
