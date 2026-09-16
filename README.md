@@ -31,8 +31,12 @@ QiaoMES/
 │   │   │   └── {Domain, Application, Infrastructure, Api}
 │   │   ├── Production/         # 生产（工单、报工）
 │   │   │   └── {Domain, Application, Infrastructure, Api}
-│   │   └── MasterData/         # 主数据（产品、物料、工序、工作中心）
-│   │       └── {Domain, Application, Infrastructure, Api}
+│   │   ├── MasterData/         # 主数据（产品、物料、工序、工作中心、BOM、工艺路线）
+│   │   │   └── {Domain, Application, Infrastructure, Api}
+│   │   ├── Quality/            # 质量（检验、不合格处置、SPC、来料批次谱系）
+│   │   ├── Equipment/          # 设备与 Andon
+│   │   ├── Reporting/          # 报表、班次与日历、预聚合指标、只读投影
+│   │   └── Assistant/          # 智能问数（语义层 + NL2SQL + 只读护栏）
 │   └── QiaoMES.Api/            # 主机（组合所有模块）
 ├── tests/
 │   ├── QiaoMES.Domain.Tests/   # 领域与权限目录单元测试
@@ -42,17 +46,21 @@ QiaoMES/
 
 ## 快速开始
 
-### 两种部署方式
+### 三种部署方式
 
 ```bash
-# 方式一：本地构建（开发机，改完代码必须带 --build，否则跑的还是旧镜像）
+# ① 本地构建（开发机自验；改完代码必须带 --build，否则跑的还是旧镜像）
 docker compose up -d --build
 
-# 方式二：TCR 镜像（服务器 / 团队环境，无需 .NET SDK 与 Node，启动更快）
-docker compose -f docker-compose.tcr.yml up -d
+# ② 服务器人工部署（只拉镜像，服务器无需 .NET SDK / Node，也不吃内存去构建）
+docker compose -f docker-compose.deploy.yml up -d
+
+# ③ 自动部署（推荐）：push main 即发布
+#    GitHub Actions：测试 → 构建镜像并推仓 → 云助手在服务器上 pull & up -d → 健康检查 + 公网冒烟
+#    见 .github/workflows/deploy.yml，准备清单见 docs/CICD.md
 ```
 
-方式二的镜像来自腾讯云 TCR，更新流程（在有源码的机器上执行）：
+方式 ②③ 需要先把镜像推到镜像仓（腾讯云 TCR 或阿里云 ACR，见 [docs/CICD.md](docs/CICD.md) 第 2.1 节）：
 
 ```bash
 docker login ccr.ccs.tencentyun.com
@@ -62,11 +70,15 @@ docker push ccr.ccs.tencentyun.com/qiaoqiao11/qiaomes-api:latest
 docker push ccr.ccs.tencentyun.com/qiaoqiao11/qiaomes-web:latest
 ```
 
-可用环境变量覆盖：`QIAOMES_API_IMAGE` / `QIAOMES_WEB_IMAGE` / `JWT_SECRET_KEY` / `POSTGRES_PASSWORD` / `WEB_PORT` / `CORS_ORIGINS`。
+可用环境变量覆盖：`QIAOMES_API_IMAGE` / `QIAOMES_WEB_IMAGE` / `JWT_SECRET_KEY` / `POSTGRES_PASSWORD` / `WEB_PORT` / `CORS_ORIGINS` / `GATEWAY_NETWORK` / `DemoData__Enabled` / `Assistant__*`。
+服务器上统一写在 `/root/qiaomes/.env`（CI 部署时会合并写入），**必须先有 `.env` 再 `up -d`**。
 
-> ⚠️ **两个常见坑**
+> 🔴 **三个必读的坑**
 > 1. 改完代码没加 `--build` → 跑的还是旧镜像（表现为前端页面/菜单是旧的）。
-> 2. 日志出现 `Npgsql 42703 column xxx does not exist` → 库表结构与代码不一致（旧 volume 缺 `__EFMigrationsHistory`）。先 `pg_dump -Fc` 备份，再 `docker compose down -v` + `up -d --build` 让迁移从头应用。（Docker 一键部署，推荐）
+> 2. **漏写 `.env` 就 `up -d`** → `WEB_PORT` 退回 8080（外网端口变了）、`POSTGRES_PASSWORD` 退回默认值（API 连不上已初始化的数据库卷）。
+> 3. 日志出现 `Npgsql 42703 column xxx does not exist` → 库表结构与代码不一致（旧 volume 缺 `__EFMigrationsHistory`）。先 `pg_dump -Fc` 备份，再 `docker compose down -v` + `up -d --build` 让迁移从头应用。
+
+### 本机跑起来
 
 整个系统（PostgreSQL + 后端 + 前端）通过 Docker Compose 一条命令启动：
 
@@ -89,11 +101,13 @@ docker compose down
 
 ### 生产环境配置
 
-生产配置通过环境变量注入（见 `docker-compose.yml`），关键项包括：
+生产配置通过环境变量注入（见 `docker-compose.deploy.yml`），关键项包括：
 
 - `ConnectionStrings__DefaultDb`：数据库连接（**所有模块共用同一连接**，用于跨模块事务）
 - `Jwt__SecretKey`：JWT 密钥（**生产环境务必修改**）
-- `Cors__Origins`：前端访问地址
+- `Cors__Origins`：允许的跨域来源
+- `Assistant__*`：智能问数（模型端点与密钥，见 [docs/AI-QUERY.md](docs/AI-QUERY.md)）
+- `DemoData__Enabled`：演示数据端点（默认关闭）+ `GATEWAY_NETWORK`：网关网络（域名反代用）
 
 ---
 
@@ -150,6 +164,59 @@ dotnet ef migrations add <名称> \
   --context IdentityDbContext --output-dir Persistence/Migrations
 ```
 
+## 演示数据与智能问数
+
+### 一键灌一套 SMT 演示数据
+
+```bash
+# 本地 docker compose（8080 端口）
+pwsh tools/seed-demo.ps1
+
+# 服务器 / 域名部署
+pwsh tools/seed-demo.ps1 -BaseUrl https://mes.qiaoqiaoqiao.me
+
+# 自定义规模 / 只清理
+pwsh tools/seed-demo.ps1 -Days 45 -WorkOrders 12 -SnPerOrder 80
+pwsh tools/seed-demo.ps1 -Cleanup
+```
+
+它会灌入：3 条 SMT 产线 × 5 个机台工位、3 个产品（各带 BOM 与工艺路线）、5 道工序、12 个 SMT 不良代码、
+2 个班次（含跨天夜班）、8 张工单（草稿 → 已完工）与 40 条工序任务、
+约 300 颗 SN 与约 1800 条过站轨迹、8 张 IQC + 30 张 IPQC + 6 张 FQC 检验单、
+不合格处置、15 台设备（含停机历史与点检）、6 条 Andon 呼叫，
+并把时间线铺开到最近 N 天、重算预聚合指标。
+
+**幂等 + 可清理**：所有演示数据以 `DEMO-` 前缀标识，反复执行只会重建，
+`DELETE /api/dev/demo-data` 可精确清除，手工录入的数据完全不受影响。
+
+> 该端点默认**仅 Development 环境**放行；要在演示服务器上开启，显式设置 `DemoData:Enabled=true`。
+
+### 智能问数（中文 → 只读 SQL）
+
+左侧菜单「智能问数」：用中文提问，服务端让大模型生成 SQL，经只读护栏校验后执行，直接给结果与图表。
+
+```jsonc
+// appsettings.json / 环境变量（任何 OpenAI 兼容端点都行）
+"Assistant": {
+  "Enabled": true,
+  "Llm": { "BaseUrl": "https://api.deepseek.com/v1", "ApiKey": "sk-xxx", "Model": "deepseek-chat" }
+}
+```
+
+部署时也可以走环境变量：
+
+```bash
+ASSISTANT_LLM_API_KEY=sk-xxx ASSISTANT_LLM_MODEL=deepseek-chat docker compose -f docker-compose.deploy.yml up -d
+```
+
+安全设计是**三道防线**：`SqlGuard` 白名单校验（只允许单条 `SELECT`/`WITH`）→
+数据库层 `SET TRANSACTION READ ONLY` → （生产建议）独立的只读账号。
+模型只拿到「表结构文本」，拿不到连接串；生成的 SQL 完整展示、可复制、可审计。
+
+📖 **完整准备清单与运维说明见 [docs/AI-QUERY.md](docs/AI-QUERY.md)**。
+
+---
+
 ## 已实现功能
 
 - [x] 用户注册、登录（JWT 认证）
@@ -183,7 +250,13 @@ dotnet ef migrations add <名称> \
 - [x] 主数据 CSV 导入导出（产品 / 物料 / 工序 / 工作中心，按编码 upsert）
 - [x] 并发安全的工单号生成（按日递增，数据库原子取号）
 - [x] SignalR 实时生产看板（通知在事务提交后发送）
-- [x] 前端 Vue3 界面（登录、工单管理、生产看板、角色与权限、用户管理）
+- [x] **智能问数（AI + 数据库）**：中文提问 → 大模型生成只读 SQL → 守卫校验 → 执行 → 表格 / 柱状 / 折线 / 饼图，SQL 全程可审计
+- [x] **智能问数的安全三层**：`SqlGuard`（白名单 + 黑名单 + 强制 LIMIT）、`SET TRANSACTION READ ONLY` + `statement_timeout`、可选独立只读账号
+- [x] **语义层**：19 张核心表的中文业务名 / 枚举取值 / 业务口径；列结构实时读 `information_schema`，不会讲错列名
+- [x] **NL2SQL 自我修复**：SQL 报错回灌模型重写（默认 2 轮），列名写错、漏软删除条件基本能自动纠回
+- [x] **一键演示数据**：`tools/seed-demo.ps1` 灌入完整 SMT 场景（3 产线 × 8 工单 × 300 SN × 检验 / 设备 / Andon），幂等且可精确清理
+- [x] **SPC 控制图前端**：均值 / ±3σ 控制限 / 规格限四线叠加，判异结论与超限点高亮
+- [x] 前端 Vue3 界面（登录、工单管理、生产看板、SN 过站、质量管理、设备与 Andon、追溯查询、主数据、报表与班次、智能问数、角色与权限、用户管理、车间大屏）
 - [x] 请求级单事务（跨模块写入原子提交）
 - [x] 健康检查、结构化日志、GitHub Actions CI
 
