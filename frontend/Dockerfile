@@ -3,8 +3,10 @@ FROM node:22-alpine AS build
 WORKDIR /app
 
 # 复制依赖清单并安装
-COPY frontend/package.json ./
-RUN npm install --registry=https://registry.npmjs.org/
+# 用 npm ci（而不是 npm install）：严格按 package-lock.json 还原，
+# 保证 CI 构建出的镜像与本地/测试环境依赖版本完全一致。
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --no-audit --no-fund
 
 # 复制源码并构建
 COPY frontend/ ./

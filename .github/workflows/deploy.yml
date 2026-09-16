@@ -1,0 +1,186 @@
+name: Deploy
+
+# ============================================================
+# QiaoMES 自动部署：测试 → 构建镜像并推仓 → 云助手 RunCommand 部署到阿里云
+#
+# 链路（为什么这么设计，见 docs/CICD.md）：
+#   1. test    : 复用 ci.yml（可复用工作流）跑后端构建+测试 / 前端构建
+#   2. publish : 在 GitHub Runner 上 docker buildx 构建两个镜像并推到镜像仓（带 GHA 层缓存）
+#   3. deploy  : 用阿里云轻量应用服务器 OpenAPI RunCommand 在服务器上执行
+#                `docker compose pull && up -d --force-recreate`，并轮询健康检查
+#                —— **不在服务器上构建**（1GB 内存只会 OOM）
+#
+# 需要的仓库 Secrets（完整清单与获取方式见 docs/CICD.md）：
+#   ALIYUN_AK / ALIYUN_SK / ALIYUN_INSTANCE_ID          阿里云命令执行通道
+#   REGISTRY / REGISTRY_USERNAME / REGISTRY_PASSWORD    镜像仓（默认腾讯 TCR）
+#   JWT_SECRET_KEY                                      JWT 签名密钥
+#   ASSISTANT_LLM_API_KEY                               智能问数的大模型密钥（可留空）
+# 可选的仓库 Variables：CORS_ORIGINS / QIAOMES_LLM_MODEL / DEMO_DATA_ENABLED / PUBLIC_BASE_URL
+# ============================================================
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'tools/**'
+      - '.gitignore'
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: '要部署的镜像 tag（留空=本次提交的 git SHA；填一个旧 SHA 即可回滚）'
+        required: false
+        type: string
+      skip_deploy:
+        description: '只构建并推送镜像，不部署（用于先验证镜像再发布）'
+        required: false
+        type: boolean
+        default: false
+
+# 同一时间只允许一次生产部署，且**不取消**进行中的部署（避免发布到一半被打断）
+concurrency:
+  group: qiaomes-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  # 镜像仓：默认沿用腾讯云 TCR；若 CI 推送 TCR 不稳定，把这三个 Secret 换成阿里云 ACR 即可（见 docs/CICD.md）
+  REGISTRY: ${{ secrets.REGISTRY || 'ccr.ccs.tencentyun.com' }}
+  REGISTRY_NAMESPACE: ${{ secrets.REGISTRY_NAMESPACE || 'qiaoqiao11' }}
+  # 用 git SHA 作为镜像 tag：可追溯、可回滚（latest 只是给手工 pull 用的便利标签）
+  IMAGE_TAG: ${{ inputs.image_tag || github.sha }}
+
+jobs:
+  # ---------- 1. 测试（复用 ci.yml，不重复维护一套检查逻辑）----------
+  test:
+    name: 测试
+    uses: ./.github/workflows/ci.yml
+
+  # ---------- 2. 构建并推送镜像 ----------
+  publish:
+    name: 构建并推送镜像
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+
+      # 首次启用时最容易卡在这里：Secrets 没配全 → docker login 报一串看不懂的鉴权错误。
+      # 这里提前把缺的东西点出来，并写进 Step Summary。
+      - name: 检查必需的 Secrets
+        env:
+          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+        run: |
+          missing=""
+          [ -n "$REGISTRY_USERNAME" ] || missing="$missing REGISTRY_USERNAME"
+          [ -n "$REGISTRY_PASSWORD" ] || missing="$missing REGISTRY_PASSWORD"
+          if [ -n "$missing" ]; then
+            echo "::error::缺少仓库 Secrets：$missing —— 请先按 docs/CICD.md 第 2.1 / 2.2 节配置后再重新运行"
+            {
+              echo "### ⚠️ 缺少必需的 Secrets"
+              echo ""
+              echo "\`$missing\` 未配置，无法登录镜像仓，发布流程已中止。"
+              echo ""
+              echo "配置方法见 [docs/CICD.md](../blob/main/docs/CICD.md) 第 2.2 节。"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+      - name: 启用 Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 登录镜像仓
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: 构建并推送 API 镜像
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: src/QiaoMES.Api/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/qiaomes-api:${{ env.IMAGE_TAG }}
+            ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/qiaomes-api:latest
+          cache-from: type=gha,scope=qiaomes-api
+          cache-to: type=gha,mode=max,scope=qiaomes-api
+
+      - name: 构建并推送 Web 镜像
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/qiaomes-web:${{ env.IMAGE_TAG }}
+            ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/qiaomes-web:latest
+          cache-from: type=gha,scope=qiaomes-web
+          cache-to: type=gha,mode=max,scope=qiaomes-web
+
+      - name: 输出镜像地址
+        run: |
+          echo "### 已推送镜像" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/qiaomes-api:${{ env.IMAGE_TAG }}" >> $GITHUB_STEP_SUMMARY
+          echo "${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/qiaomes-web:${{ env.IMAGE_TAG }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  # ---------- 3. 部署到阿里云 ----------
+  deploy:
+    name: 部署到阿里云
+    needs: publish
+    if: ${{ !inputs.skip_deploy }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安装阿里云 SDK
+        run: pip install --quiet aliyun-python-sdk-core
+
+      - name: 通过云助手 RunCommand 部署
+        env:
+          ALIYUN_AK: ${{ secrets.ALIYUN_AK }}
+          ALIYUN_SK: ${{ secrets.ALIYUN_SK }}
+          ALIYUN_INSTANCE_ID: ${{ secrets.ALIYUN_INSTANCE_ID }}
+          ALIYUN_REGION: cn-shanghai
+
+          REGISTRY: ${{ env.REGISTRY }}
+          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+
+          QIAOMES_API_IMAGE: ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/qiaomes-api:${{ env.IMAGE_TAG }}
+          QIAOMES_WEB_IMAGE: ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/qiaomes-web:${{ env.IMAGE_TAG }}
+
+          JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
+          WEB_PORT: ${{ vars.WEB_PORT || '8090' }}
+          CORS_ORIGINS: ${{ vars.CORS_ORIGINS || 'https://mes.qiaoqiaoqiao.me,http://139.196.195.44:8090' }}
+          GATEWAY_NETWORK: ${{ vars.GATEWAY_NETWORK || 'kanban_net' }}
+
+          DEMO_DATA_ENABLED: ${{ vars.DEMO_DATA_ENABLED || 'false' }}
+          ASSISTANT_ENABLED: ${{ vars.ASSISTANT_ENABLED || 'true' }}
+          ASSISTANT_LLM_BASE_URL: ${{ vars.ASSISTANT_LLM_BASE_URL || 'https://api.deepseek.com/v1' }}
+          ASSISTANT_LLM_MODEL: ${{ vars.ASSISTANT_LLM_MODEL || 'deepseek-chat' }}
+          ASSISTANT_LLM_API_KEY: ${{ secrets.ASSISTANT_LLM_API_KEY }}
+
+          RAW_COMPOSE_URL: https://raw.githubusercontent.com/${{ github.repository }}/${{ github.event.repository.default_branch }}/docker-compose.deploy.yml
+          PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL || 'https://mes.qiaoqiaoqiao.me' }}
+          SMOKE_USER: ${{ secrets.SMOKE_USER || 'admin' }}
+          SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD || 'Admin123!' }}
+        run: python deploy/gh_deploy_aliyun.py

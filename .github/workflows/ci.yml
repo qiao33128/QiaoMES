@@ -1,10 +1,14 @@
 name: CI
 
+# 触发说明：
+#   - PR → 跑本工作流做检查
+#   - push main → 由 Deploy 工作流把本文件当「可复用工作流」调用（先测后发），
+#     所以这里**不再**单独监听 main，避免同一次提交跑两遍测试
+#   - workflow_dispatch → 手动跑一次检查
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
+  workflow_call:
   workflow_dispatch:
 
 env:

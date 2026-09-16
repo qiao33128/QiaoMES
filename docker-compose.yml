@@ -4,8 +4,9 @@
 # 用法：
 #   docker compose up -d --build          # 改完代码必须带 --build，否则跑的还是旧镜像
 #
-# 服务器 / 团队环境请改用 TCR 镜像版（无需 SDK，启动更快）：
-#   docker compose -f docker-compose.tcr.yml up -d
+# 服务器 / 团队环境请改用部署版（拉镜像，无需 SDK，启动更快）：
+#   docker compose -f docker-compose.deploy.yml up -d
+# 自动部署见 .github/workflows/deploy.yml 与 docs/CICD.md
 # ============================================================
 
 services:
@@ -52,6 +53,16 @@ services:
       Jwt__Audience: QiaoMES.Api
       # 前端访问地址（Nginx 服务）
       Cors__Origins: http://localhost:8080
+      # 演示数据端点（默认关闭，仅 Development 环境自动放行；演示服务器可显式打开）
+      DemoData__Enabled: ${DEMO_DATA_ENABLED:-false}
+      # 智能问数：任何 OpenAI 兼容端点都行（DeepSeek / 通义 / Kimi / 本地 Ollama）
+      # ApiKey 留空则功能不可用（页面会给出配置提示），DB 不会被访问
+      Assistant__Enabled: ${ASSISTANT_ENABLED:-true}
+      Assistant__Llm__BaseUrl: ${ASSISTANT_LLM_BASE_URL:-https://api.deepseek.com/v1}
+      Assistant__Llm__ApiKey: ${ASSISTANT_LLM_API_KEY:-}
+      Assistant__Llm__Model: ${ASSISTANT_LLM_MODEL:-deepseek-chat}
+      # 生产环境强烈建议指向只读账号；留空则复用 DefaultDb（靠 READ ONLY 事务兜底）
+      Assistant__ConnectionString: ${ASSISTANT_DB_CONNECTION:-}
     expose:
       - "8080"
     networks:

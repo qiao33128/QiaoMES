@@ -1,0 +1,116 @@
+# ============================================================
+# QiaoMES · 生产部署编排（镜像仓模式，服务器不构建）
+#
+# 用法（服务器上）：
+#   cd /root/qiaomes
+#   docker compose -f docker-compose.deploy.yml pull && docker compose -f docker-compose.deploy.yml up -d
+#
+# 设计要点：
+#   1. 只用 image: 拉镜像，**服务器不需要 .NET SDK / Node**，也不吃 CPU 内存去构建
+#      （本机是 1GB 轻量机，在服务器上 docker build 会 OOM）。
+#   2. 全部可变项都走 `.env`（同目录）。**必须先把 .env 写好再 up**，
+#      否则 WEB_PORT / POSTGRES_PASSWORD 会退回默认值——前者会让端口从 8090 变回 8080，
+#      后者会让 API 连不上已初始化的数据库卷。CI 部署脚本会先写 .env 再重建。
+#   3. `gateway` 是看板站的 Caddy 网关网络（external）。caddy 通过 `qiaomes-web:80`
+#      反代 mes.qiaoqiaoqiao.me，**web 必须挂在这个网络上**，否则域名会 502/无法解析。
+#      注意：手工 `docker network connect` 不是持久的，容器一重建就丢，所以这里声明成 external。
+#
+# .env 可用变量：
+#   QIAOMES_API_IMAGE / QIAOMES_WEB_IMAGE   完整镜像地址（含 registry 与 tag）
+#   JWT_SECRET_KEY / POSTGRES_PASSWORD      ⚠️ POSTGRES_PASSWORD 必须与数据库卷初始化时一致
+#   WEB_PORT（对外端口，默认 8080；本机与服务共存故用 8090）
+#   CORS_ORIGINS / GATEWAY_NETWORK
+#   DEMO_DATA_ENABLED / ASSISTANT_ENABLED / ASSISTANT_LLM_* / ASSISTANT_DB_CONNECTION
+#
+# 自动部署见 `.github/workflows/deploy.yml` + `deploy/gh_deploy_aliyun.py`，说明见 `docs/CICD.md`。
+# ============================================================
+
+services:
+  # ---------- PostgreSQL 数据库 ----------
+  postgres:
+    image: postgres:16-alpine
+    container_name: qiaomes-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: qiaomes
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-qiaomes_dev}
+      POSTGRES_DB: qiaomes
+      TZ: Asia/Shanghai
+    ports:
+      - "5432:5432"
+    volumes:
+      # ⚠️ 卷名不可改：改成别的名字会挂到一个空库上，看起来像"数据全丢了"
+      - qiaomes_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qiaomes -d qiaomes"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # 小内存服务器（1GB 轻量机）调优：限制共享缓冲与连接数，避免把内存吃满
+    command: >
+      postgres
+      -c shared_buffers=64MB
+      -c max_connections=50
+      -c effective_cache_size=256MB
+      -c work_mem=4MB
+    networks:
+      - qiaomes-net
+
+  # ---------- 后端 API ----------
+  api:
+    image: ${QIAOMES_API_IMAGE:-ccr.ccs.tencentyun.com/qiaoqiao11/qiaomes-api:latest}
+    container_name: qiaomes-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      # 全部模块共用同一连接，才能把跨模块写入放进同一个事务
+      ConnectionStrings__DefaultDb: Host=postgres;Port=5432;Database=qiaomes;Username=qiaomes;Password=${POSTGRES_PASSWORD:-qiaomes_dev}
+      # 生产环境务必通过环境变量传入自己的密钥（至少 32 字符）
+      Jwt__SecretKey: ${JWT_SECRET_KEY:-QiaoMES_Prod_Secret_Change_Me_At_Least_32_Chars_0123456789}
+      Jwt__Issuer: QiaoMES
+      Jwt__Audience: QiaoMES.Api
+      # 前端对外访问地址（同源部署其实用不到，但直连 API 调试/脚本会用到）
+      Cors__Origins: ${CORS_ORIGINS:-http://localhost:8080}
+      # 演示数据端点（默认关闭；想要一套演示数据时设为 true 再用 tools/seed-demo.ps1）
+      DemoData__Enabled: ${DEMO_DATA_ENABLED:-false}
+      # 智能问数：任何 OpenAI 兼容端点都行（DeepSeek / 通义 / Kimi / 本地 Ollama）
+      Assistant__Enabled: ${ASSISTANT_ENABLED:-true}
+      Assistant__Llm__BaseUrl: ${ASSISTANT_LLM_BASE_URL:-https://api.deepseek.com/v1}
+      Assistant__Llm__ApiKey: ${ASSISTANT_LLM_API_KEY:-}
+      Assistant__Llm__Model: ${ASSISTANT_LLM_MODEL:-deepseek-chat}
+      # 生产环境强烈建议指向只读账号；留空则复用 DefaultDb（靠 READ ONLY 事务兜底）
+      Assistant__ConnectionString: ${ASSISTANT_DB_CONNECTION:-}
+    # 不占用宿主机端口：部署脚本用 `docker inspect` 拿到容器 IP 后直接探 8080（见 deploy/gh_deploy_aliyun.py）
+    expose:
+      - "8080"
+    networks:
+      - qiaomes-net
+
+  # ---------- 前端（Nginx 托管静态文件 + 反代 API）----------
+  web:
+    image: ${QIAOMES_WEB_IMAGE:-ccr.ccs.tencentyun.com/qiaoqiao11/qiaomes-web:latest}
+    container_name: qiaomes-web
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    networks:
+      - qiaomes-net
+      # 与看板站网关（kanban-caddy）同网，便于用域名 + HTTPS 反向代理到本服务；
+      # 该网络由看板站 compose 创建，故声明为 external。
+      - gateway
+
+volumes:
+  qiaomes_pgdata:
+
+networks:
+  qiaomes-net:
+    driver: bridge
+
+  gateway:
+    external: true
+    name: ${GATEWAY_NETWORK:-kanban_net}
