@@ -1,0 +1,525 @@
+{
+  "generatedAt": "2026-09-16T08:53:31.7626011+08:00",
+  "seed": {
+    "inspectionCount": 200000,
+    "snCount": 1000000
+  },
+  "indexHealth": {
+    "tables": [
+      {
+        "schema": "quality",
+        "table": "inspections",
+        "seq_scan": 2886,
+        "idx_scan": 4174,
+        "live_rows": 200127,
+        "total_size": "69 MB"
+      },
+      {
+        "schema": "production",
+        "table": "serial_numbers",
+        "seq_scan": 2510,
+        "idx_scan": 367,
+        "live_rows": 1000064,
+        "total_size": "278 MB"
+      },
+      {
+        "schema": "production",
+        "table": "production_reports",
+        "seq_scan": 487,
+        "idx_scan": 15,
+        "live_rows": 36,
+        "total_size": "64 kB"
+      },
+      {
+        "schema": "equipment",
+        "table": "andon_calls",
+        "seq_scan": 307,
+        "idx_scan": 74,
+        "live_rows": 34,
+        "total_size": "128 kB"
+      },
+      {
+        "schema": "production",
+        "table": "work_order_operations",
+        "seq_scan": 275,
+        "idx_scan": 632,
+        "live_rows": 139,
+        "total_size": "112 kB"
+      },
+      {
+        "schema": "quality",
+        "table": "inspection_items",
+        "seq_scan": 265,
+        "idx_scan": 627,
+        "live_rows": 140,
+        "total_size": "128 kB"
+      },
+      {
+        "schema": "production",
+        "table": "work_orders",
+        "seq_scan": 215,
+        "idx_scan": 784,
+        "live_rows": 299,
+        "total_size": "248 kB"
+      },
+      {
+        "schema": "quality",
+        "table": "nonconformances",
+        "seq_scan": 105,
+        "idx_scan": 100,
+        "live_rows": 30,
+        "total_size": "128 kB"
+      },
+      {
+        "schema": "equipment",
+        "table": "equipments",
+        "seq_scan": 85,
+        "idx_scan": 132,
+        "live_rows": 36,
+        "total_size": "80 kB"
+      },
+      {
+        "schema": "reporting",
+        "table": "shifts",
+        "seq_scan": 63,
+        "idx_scan": 42,
+        "live_rows": 36,
+        "total_size": "64 kB"
+      },
+      {
+        "schema": "quality",
+        "table": "material_lots",
+        "seq_scan": 43,
+        "idx_scan": 156,
+        "live_rows": 30,
+        "total_size": "80 kB"
+      },
+      {
+        "schema": "production",
+        "table": "wip_trackings",
+        "seq_scan": 27,
+        "idx_scan": 152,
+        "live_rows": 72,
+        "total_size": "96 kB"
+      },
+      {
+        "schema": "infrastructure",
+        "table": "outbox_messages",
+        "seq_scan": 16,
+        "idx_scan": 296,
+        "live_rows": 34,
+        "total_size": "152 kB"
+      },
+      {
+        "schema": "quality",
+        "table": "repair_records",
+        "seq_scan": 11,
+        "idx_scan": 94,
+        "live_rows": 16,
+        "total_size": "64 kB"
+      },
+      {
+        "schema": "integration",
+        "table": "api_clients",
+        "seq_scan": 7,
+        "idx_scan": 14,
+        "live_rows": 8,
+        "total_size": "64 kB"
+      },
+      {
+        "schema": "quality",
+        "table": "sn_material_consumptions",
+        "seq_scan": 4,
+        "idx_scan": 124,
+        "live_rows": 15,
+        "total_size": "80 kB"
+      },
+      {
+        "schema": "equipment",
+        "table": "equipment_maintenance_records",
+        "seq_scan": 3,
+        "idx_scan": 66,
+        "live_rows": 12,
+        "total_size": "64 kB"
+      },
+      {
+        "schema": "quality",
+        "table": "defect_codes",
+        "seq_scan": 3,
+        "idx_scan": 18,
+        "live_rows": 9,
+        "total_size": "64 kB"
+      },
+      {
+        "schema": "equipment",
+        "table": "equipment_status_logs",
+        "seq_scan": 3,
+        "idx_scan": 83,
+        "live_rows": 36,
+        "total_size": "56 kB"
+      },
+      {
+        "schema": "reporting",
+        "table": "calendar_days",
+        "seq_scan": 2,
+        "idx_scan": 76,
+        "live_rows": 2,
+        "total_size": "48 kB"
+      },
+      {
+        "schema": "production",
+        "table": "work_order_daily_sequences",
+        "seq_scan": 1,
+        "idx_scan": 543,
+        "live_rows": 2,
+        "total_size": "56 kB"
+      },
+      {
+        "schema": "equipment",
+        "table": "equipment_number_sequences",
+        "seq_scan": 1,
+        "idx_scan": 34,
+        "live_rows": 2,
+        "total_size": "24 kB"
+      },
+      {
+        "schema": "quality",
+        "table": "quality_number_sequences",
+        "seq_scan": 1,
+        "idx_scan": 157,
+        "live_rows": 8,
+        "total_size": "56 kB"
+      }
+    ],
+    "unusedIndexes": [
+      {
+        "schema": "production",
+        "table": "serial_numbers",
+        "index": "IX_serial_numbers_CreatedAt_Status",
+        "idx_scan": 0,
+        "index_size": "30 MB"
+      },
+      {
+        "schema": "quality",
+        "table": "inspections",
+        "index": "IX_inspections_InspectionNumber",
+        "idx_scan": 0,
+        "index_size": "7952 kB"
+      },
+      {
+        "schema": "quality",
+        "table": "inspections",
+        "index": "IX_inspections_Type_Status",
+        "idx_scan": 0,
+        "index_size": "1304 kB"
+      },
+      {
+        "schema": "quality",
+        "table": "inspections",
+        "index": "IX_inspections_WorkOrderId",
+        "idx_scan": 0,
+        "index_size": "1272 kB"
+      },
+      {
+        "schema": "production",
+        "table": "work_orders",
+        "index": "IX_work_orders_Status_CreatedAt",
+        "idx_scan": 0,
+        "index_size": "40 kB"
+      },
+      {
+        "schema": "production",
+        "table": "work_orders",
+        "index": "IX_work_orders_OrderNumber",
+        "idx_scan": 0,
+        "index_size": "32 kB"
+      },
+      {
+        "schema": "production",
+        "table": "work_orders",
+        "index": "IX_work_orders_ProductId_Status",
+        "idx_scan": 0,
+        "index_size": "32 kB"
+      },
+      {
+        "schema": "quality",
+        "table": "inspection_items",
+        "index": "IX_inspection_items_InspectionId1",
+        "idx_scan": 0,
+        "index_size": "16 kB"
+      },
+      {
+        "schema": "quality",
+        "table": "nonconformances",
+        "index": "IX_nonconformances_InspectionId",
+        "idx_scan": 0,
+        "index_size": "16 kB"
+      },
+      {
+        "schema": "quality",
+        "table": "nonconformances",
+        "index": "IX_nonconformances_NonconformanceNumber",
+        "idx_scan": 0,
+        "index_size": "16 kB"
+      },
+      {
+        "schema": "quality",
+        "table": "nonconformances",
+        "index": "IX_nonconformances_Sn",
+        "idx_scan": 0,
+        "index_size": "16 kB"
+      },
+      {
+        "schema": "quality",
+        "table": "nonconformances",
+        "index": "IX_nonconformances_Status",
+        "idx_scan": 0,
+        "index_size": "16 kB"
+      },
+      {
+        "schema": "production",
+        "table": "production_reports",
+        "index": "PK_production_reports",
+        "idx_scan": 0,
+        "index_size": "16 kB"
+      },
+      {
+        "schema": "equipment",
+        "table": "equipment_maintenance_records",
+        "index": "PK_equipment_maintenance_records",
+        "idx_scan": 0,
+        "index_size": "16 kB"
+      },
+      {
+        "schema": "equipment",
+        "table": "equipment_status_logs",
+        "index": "PK_equipment_status_logs",
+        "idx_scan": 0,
+        "index_size": "16 kB"
+      },
+      {
+        "schema": "equipment",
+        "table": "andon_calls",
+        "index": "IX_andon_calls_CalledAt",
+        "idx_scan": 0,
+        "index_size": "16 kB"
+      },
+      {
+        "schema": "equipment",
+        "table": "andon_calls",
+        "index": "IX_andon_calls_CallNumber",
+        "idx_scan": 0,
+        "index_size": "16 kB"
+      },
+      {
+        "schema": "equipment",
+        "table": "andon_calls",
+        "index": "IX_andon_calls_EquipmentId",
+        "idx_scan": 0,
+        "index_size": "16 kB"
+      },
+      {
+        "schema": "equipment",
+        "table": "equipment_maintenance_records",
+        "index": "IX_equipment_maintenance_records_ExecutedAt",
+        "idx_scan": 0,
+        "index_size": "16 kB"
+      },
+      {
+        "schema": "equipment",
+        "table": "equipments",
+        "index": "IX_equipments_Status_IsActive",
+        "idx_scan": 0,
+        "index_size": "16 kB"
+      },
+      {
+        "schema": "equipment",
+        "table": "equipments",
+        "index": "IX_equipments_WorkCenterId",
+        "idx_scan": 0,
+        "index_size": "16 kB"
+      },
+      {
+        "schema": "quality",
+        "table": "sn_material_consumptions",
+        "index": "PK_sn_material_consumptions",
+        "idx_scan": 0,
+        "index_size": "16 kB"
+      },
+      {
+        "schema": "quality",
+        "table": "material_lots",
+        "index": "IX_material_lots_MaterialCode_Status",
+        "idx_scan": 0,
+        "index_size": "16 kB"
+      },
+      {
+        "schema": "quality",
+        "table": "material_lots",
+        "index": "IX_material_lots_ReceivedAt",
+        "idx_scan": 0,
+        "index_size": "16 kB"
+      },
+      {
+        "schema": "quality",
+        "table": "sn_material_consumptions",
+        "index": "IX_sn_material_consumptions_BoundAt",
+        "idx_scan": 0,
+        "index_size": "16 kB"
+      }
+    ],
+    "slowStatements": [
+      {
+        "note": "pg_stat_statements 不可用：42P01: relation \"pg_stat_statements\" does not exist\r\n\r\nPOSITION: 135"
+      }
+    ]
+  },
+  "plans": {
+    "sn-lookup": {
+      "scenario": "sn-lookup",
+      "description": "按 SN 查详情（过站追溯入口，23 亿行级表的等价场景）",
+      "plan": [
+        {
+          "QUERY PLAN": "[\n  {\n    \"Plan\": {\n      \"Node Type\": \"Index Scan\",\n      \"Parallel Aware\": false,\n      \"Async Capable\": false,\n      \"Scan Direction\": \"Forward\",\n      \"Index Name\": \"IX_serial_numbers_Sn\",\n      \"Relation Name\": \"serial_numbers\",\n      \"Alias\": \"serial_numbers\",\n      \"Startup Cost\": 0.42,\n      \"Total Cost\": 8.44,\n      \"Plan Rows\": 1,\n      \"Plan Width\": 1468,\n      \"Actual Startup Time\": 0.025,\n      \"Actual Total Time\": 0.026,\n      \"Actual Rows\": 1,\n      \"Actual Loops\": 1,\n      \"Index Cond\": \"((\\\"Sn\\\")::text = 'SN-PERF-000000001'::text)\",\n      \"Rows Removed by Index Recheck\": 0,\n      \"Shared Hit Blocks\": 1,\n      \"Shared Read Blocks\": 3,\n      \"Shared Dirtied Blocks\": 0,\n      \"Shared Written Blocks\": 0,\n      \"Local Hit Blocks\": 0,\n      \"Local Read Blocks\": 0,\n      \"Local Dirtied Blocks\": 0,\n      \"Local Written Blocks\": 0,\n      \"Temp Read Blocks\": 0,\n      \"Temp Written Blocks\": 0\n    },\n    \"Planning\": {\n      \"Shared Hit Blocks\": 93,\n      \"Shared Read Blocks\": 5,\n      \"Shared Dirtied Blocks\": 0,\n      \"Shared Written Blocks\": 0,\n      \"Local Hit Blocks\": 0,\n      \"Local Read Blocks\": 0,\n      \"Local Dirtied Blocks\": 0,\n      \"Local Written Blocks\": 0,\n      \"Temp Read Blocks\": 0,\n      \"Temp Written Blocks\": 0\n    },\n    \"Planning Time\": 0.469,\n    \"Triggers\": [\n    ],\n    \"Execution Time\": 0.042\n  }\n]"
+        }
+      ]
+    },
+    "inspection-by-sn": {
+      "scenario": "inspection-by-sn",
+      "description": "按 SN 取检验历史（追溯报告）",
+      "plan": [
+        {
+          "QUERY PLAN": "[\n  {\n    \"Plan\": {\n      \"Node Type\": \"Limit\",\n      \"Parallel Aware\": false,\n      \"Async Capable\": false,\n      \"Startup Cost\": 8.45,\n      \"Total Cost\": 8.45,\n      \"Plan Rows\": 1,\n      \"Plan Width\": 841,\n      \"Actual Startup Time\": 0.045,\n      \"Actual Total Time\": 0.046,\n      \"Actual Rows\": 1,\n      \"Actual Loops\": 1,\n      \"Shared Hit Blocks\": 1,\n      \"Shared Read Blocks\": 3,\n      \"Shared Dirtied Blocks\": 0,\n      \"Shared Written Blocks\": 0,\n      \"Local Hit Blocks\": 0,\n      \"Local Read Blocks\": 0,\n      \"Local Dirtied Blocks\": 0,\n      \"Local Written Blocks\": 0,\n      \"Temp Read Blocks\": 0,\n      \"Temp Written Blocks\": 0,\n      \"Plans\": [\n        {\n          \"Node Type\": \"Sort\",\n          \"Parent Relationship\": \"Outer\",\n          \"Parallel Aware\": false,\n          \"Async Capable\": false,\n          \"Startup Cost\": 8.45,\n          \"Total Cost\": 8.45,\n          \"Plan Rows\": 1,\n          \"Plan Width\": 841,\n          \"Actual Startup Time\": 0.045,\n          \"Actual Total Time\": 0.045,\n          \"Actual Rows\": 1,\n          \"Actual Loops\": 1,\n          \"Sort Key\": [\"\\\"CreatedAt\\\" DESC\"],\n          \"Sort Method\": \"quicksort\",\n          \"Sort Space Used\": 25,\n          \"Sort Space Type\": \"Memory\",\n          \"Shared Hit Blocks\": 1,\n          \"Shared Read Blocks\": 3,\n          \"Shared Dirtied Blocks\": 0,\n          \"Shared Written Blocks\": 0,\n          \"Local Hit Blocks\": 0,\n          \"Local Read Blocks\": 0,\n          \"Local Dirtied Blocks\": 0,\n          \"Local Written Blocks\": 0,\n          \"Temp Read Blocks\": 0,\n          \"Temp Written Blocks\": 0,\n          \"Plans\": [\n            {\n              \"Node Type\": \"Index Scan\",\n              \"Parent Relationship\": \"Outer\",\n              \"Parallel Aware\": false,\n              \"Async Capable\": false,\n              \"Scan Direction\": \"Forward\",\n              \"Index Name\": \"IX_inspections_Sn\",\n              \"Relation Name\": \"inspections\",\n              \"Alias\": \"inspections\",\n              \"Startup Cost\": 0.42,\n              \"Total Cost\": 8.44,\n              \"Plan Rows\": 1,\n              \"Plan Width\": 841,\n              \"Actual Startup Time\": 0.036,\n              \"Actual Total Time\": 0.037,\n              \"Actual Rows\": 1,\n              \"Actual Loops\": 1,\n              \"Index Cond\": \"((\\\"Sn\\\")::text = 'SN-PERF-000000001'::text)\",\n              \"Rows Removed by Index Recheck\": 0,\n              \"Shared Hit Blocks\": 1,\n              \"Shared Read Blocks\": 3,\n              \"Shared Dirtied Blocks\": 0,\n              \"Shared Written Blocks\": 0,\n              \"Local Hit Blocks\": 0,\n              \"Local Read Blocks\": 0,\n              \"Local Dirtied Blocks\": 0,\n              \"Local Written Blocks\": 0,\n              \"Temp Read Blocks\": 0,\n              \"Temp Written Blocks\": 0\n            }\n          ]\n        }\n      ]\n    },\n    \"Planning\": {\n      \"Shared Hit Blocks\": 79,\n      \"Shared Read Blocks\": 3,\n      \"Shared Dirtied Blocks\": 0,\n      \"Shared Written Blocks\": 0,\n      \"Local Hit Blocks\": 0,\n      \"Local Read Blocks\": 0,\n      \"Local Dirtied Blocks\": 0,\n      \"Local Written Blocks\": 0,\n      \"Temp Read Blocks\": 0,\n      \"Temp Written Blocks\": 0\n    },\n    \"Planning Time\": 0.578,\n    \"Triggers\": [\n    ],\n    \"Execution Time\": 0.138\n  }\n]"
+        }
+      ]
+    },
+    "sn-status-stats": {
+      "scenario": "sn-status-stats",
+      "description": "SN 状态分布统计（OEE / 大屏）",
+      "plan": [
+        {
+          "QUERY PLAN": "[\n  {\n    \"Plan\": {\n      \"Node Type\": \"Aggregate\",\n      \"Strategy\": \"Sorted\",\n      \"Partial Mode\": \"Finalize\",\n      \"Parallel Aware\": false,\n      \"Async Capable\": false,\n      \"Startup Cost\": 26793.65,\n      \"Total Cost\": 26794.66,\n      \"Plan Rows\": 4,\n      \"Plan Width\": 12,\n      \"Actual Startup Time\": 59.676,\n      \"Actual Total Time\": 64.025,\n      \"Actual Rows\": 4,\n      \"Actual Loops\": 1,\n      \"Group Key\": [\"\\\"Status\\\"\"],\n      \"Shared Hit Blocks\": 12270,\n      \"Shared Read Blocks\": 4987,\n      \"Shared Dirtied Blocks\": 0,\n      \"Shared Written Blocks\": 0,\n      \"Local Hit Blocks\": 0,\n      \"Local Read Blocks\": 0,\n      \"Local Dirtied Blocks\": 0,\n      \"Local Written Blocks\": 0,\n      \"Temp Read Blocks\": 0,\n      \"Temp Written Blocks\": 0,\n      \"Plans\": [\n        {\n          \"Node Type\": \"Gather Merge\",\n          \"Parent Relationship\": \"Outer\",\n          \"Parallel Aware\": false,\n          \"Async Capable\": false,\n          \"Startup Cost\": 26793.65,\n          \"Total Cost\": 26794.58,\n          \"Plan Rows\": 8,\n          \"Plan Width\": 12,\n          \"Actual Startup Time\": 59.671,\n          \"Actual Total Time\": 64.018,\n          \"Actual Rows\": 12,\n          \"Actual Loops\": 1,\n          \"Workers Planned\": 2,\n          \"Workers Launched\": 2,\n          \"Shared Hit Blocks\": 12270,\n          \"Shared Read Blocks\": 4987,\n          \"Shared Dirtied Blocks\": 0,\n          \"Shared Written Blocks\": 0,\n          \"Local Hit Blocks\": 0,\n          \"Local Read Blocks\": 0,\n          \"Local Dirtied Blocks\": 0,\n          \"Local Written Blocks\": 0,\n          \"Temp Read Blocks\": 0,\n          \"Temp Written Blocks\": 0,\n          \"Plans\": [\n            {\n              \"Node Type\": \"Sort\",\n              \"Parent Relationship\": \"Outer\",\n              \"Parallel Aware\": false,\n              \"Async Capable\": false,\n              \"Startup Cost\": 25793.62,\n              \"Total Cost\": 25793.63,\n              \"Plan Rows\": 4,\n              \"Plan Width\": 12,\n              \"Actual Startup Time\": 57.295,\n              \"Actual Total Time\": 57.297,\n              \"Actual Rows\": 4,\n              \"Actual Loops\": 3,\n              \"Sort Key\": [\"\\\"Status\\\"\"],\n              \"Sort Method\": \"quicksort\",\n              \"Sort Space Used\": 25,\n              \"Sort Space Type\": \"Memory\",\n              \"Shared Hit Blocks\": 12270,\n              \"Shared Read Blocks\": 4987,\n              \"Shared Dirtied Blocks\": 0,\n              \"Shared Written Blocks\": 0,\n              \"Local Hit Blocks\": 0,\n              \"Local Read Blocks\": 0,\n              \"Local Dirtied Blocks\": 0,\n              \"Local Written Blocks\": 0,\n              \"Temp Read Blocks\": 0,\n              \"Temp Written Blocks\": 0,\n              \"Workers\": [\n                {\n                  \"Worker Number\": 0,\n                  \"Sort Method\": \"quicksort\",\n                  \"Sort Space Used\": 25,\n                  \"Sort Space Type\": \"Memory\"\n                },\n                {\n                  \"Worker Number\": 1,\n                  \"Sort Method\": \"quicksort\",\n                  \"Sort Space Used\": 25,\n                  \"Sort Space Type\": \"Memory\"\n                }\n              ],\n              \"Plans\": [\n                {\n                  \"Node Type\": \"Aggregate\",\n                  \"Strategy\": \"Hashed\",\n                  \"Partial Mode\": \"Partial\",\n                  \"Parent Relationship\": \"Outer\",\n                  \"Parallel Aware\": false,\n                  \"Async Capable\": false,\n                  \"Startup Cost\": 25793.54,\n                  \"Total Cost\": 25793.58,\n                  \"Plan Rows\": 4,\n                  \"Plan Width\": 12,\n                  \"Actual Startup Time\": 57.272,\n                  \"Actual Total Time\": 57.274,\n                  \"Actual Rows\": 4,\n                  \"Actual Loops\": 3,\n                  \"Group Key\": [\"\\\"Status\\\"\"],\n                  \"Planned Partitions\": 0,\n                  \"HashAgg Batches\": 1,\n                  \"Peak Memory Usage\": 24,\n                  \"Disk Usage\": 0,\n                  \"Shared Hit Blocks\": 12256,\n                  \"Shared Read Blocks\": 4987,\n                  \"Shared Dirtied Blocks\": 0,\n                  \"Shared Written Blocks\": 0,\n                  \"Local Hit Blocks\": 0,\n                  \"Local Read Blocks\": 0,\n                  \"Local Dirtied Blocks\": 0,\n                  \"Local Written Blocks\": 0,\n                  \"Temp Read Blocks\": 0,\n                  \"Temp Written Blocks\": 0,\n                  \"Workers\": [\n                    {\n                      \"Worker Number\": 0,\n                      \"HashAgg Batches\": 1,\n                      \"Peak Memory Usage\": 24,\n                      \"Disk Usage\": 0\n                    },\n                    {\n                      \"Worker Number\": 1,\n                      \"HashAgg Batches\": 1,\n                      \"Peak Memory Usage\": 24,\n                      \"Disk Usage\": 0\n                    }\n                  ],\n                  \"Plans\": [\n                    {\n                      \"Node Type\": \"Seq Scan\",\n                      \"Parent Relationship\": \"Outer\",\n                      \"Parallel Aware\": true,\n                      \"Async Capable\": false,\n                      \"Relation Name\": \"serial_numbers\",\n                      \"Alias\": \"serial_numbers\",\n                      \"Startup Cost\": 0.00,\n                      \"Total Cost\": 24535.13,\n                      \"Plan Rows\": 251682,\n                      \"Plan Width\": 4,\n                      \"Actual Startup Time\": 0.011,\n                      \"Actual Total Time\": 43.952,\n                      \"Actual Rows\": 201603,\n                      \"Actual Loops\": 3,\n                      \"Filter\": \"(\\\"CreatedAt\\\" >= (now() - '7 days'::interval))\",\n                      \"Rows Removed by Filter\": 131752,\n                      \"Shared Hit Blocks\": 12256,\n                      \"Shared Read Blocks\": 4987,\n                      \"Shared Dirtied Blocks\": 0,\n                      \"Shared Written Blocks\": 0,\n                      \"Local Hit Blocks\": 0,\n                      \"Local Read Blocks\": 0,\n                      \"Local Dirtied Blocks\": 0,\n                      \"Local Written Blocks\": 0,\n                      \"Temp Read Blocks\": 0,\n                      \"Temp Written Blocks\": 0,\n                      \"Workers\": [\n                      ]\n                    }\n                  ]\n                }\n              ]\n            }\n          ]\n        }\n      ]\n    },\n    \"Planning\": {\n      \"Shared Hit Blocks\": 13,\n      \"Shared Read Blocks\": 0,\n      \"Shared Dirtied Blocks\": 0,\n      \"Shared Written Blocks\": 0,\n      \"Local Hit Blocks\": 0,\n      \"Local Read Blocks\": 0,\n      \"Local Dirtied Blocks\": 0,\n      \"Local Written Blocks\": 0,\n      \"Temp Read Blocks\": 0,\n      \"Temp Written Blocks\": 0\n    },\n    \"Planning Time\": 0.138,\n    \"Triggers\": [\n    ],\n    \"Execution Time\": 64.098\n  }\n]"
+        }
+      ]
+    },
+    "inspection-daily": {
+      "scenario": "inspection-daily",
+      "description": "按时间区间统计检验单（报表口径）",
+      "plan": [
+        {
+          "QUERY PLAN": "[\n  {\n    \"Plan\": {\n      \"Node Type\": \"Aggregate\",\n      \"Strategy\": \"Sorted\",\n      \"Partial Mode\": \"Finalize\",\n      \"Parallel Aware\": false,\n      \"Async Capable\": false,\n      \"Startup Cost\": 6724.76,\n      \"Total Cost\": 6725.79,\n      \"Plan Rows\": 4,\n      \"Plan Width\": 20,\n      \"Actual Startup Time\": 19.657,\n      \"Actual Total Time\": 22.386,\n      \"Actual Rows\": 5,\n      \"Actual Loops\": 1,\n      \"Group Key\": [\"\\\"Status\\\"\"],\n      \"Shared Hit Blocks\": 3654,\n      \"Shared Read Blocks\": 0,\n      \"Shared Dirtied Blocks\": 0,\n      \"Shared Written Blocks\": 0,\n      \"Local Hit Blocks\": 0,\n      \"Local Read Blocks\": 0,\n      \"Local Dirtied Blocks\": 0,\n      \"Local Written Blocks\": 0,\n      \"Temp Read Blocks\": 0,\n      \"Temp Written Blocks\": 0,\n      \"Plans\": [\n        {\n          \"Node Type\": \"Gather Merge\",\n          \"Parent Relationship\": \"Outer\",\n          \"Parallel Aware\": false,\n          \"Async Capable\": false,\n          \"Startup Cost\": 6724.76,\n          \"Total Cost\": 6725.69,\n          \"Plan Rows\": 8,\n          \"Plan Width\": 20,\n          \"Actual Startup Time\": 19.652,\n          \"Actual Total Time\": 22.378,\n          \"Actual Rows\": 11,\n          \"Actual Loops\": 1,\n          \"Workers Planned\": 2,\n          \"Workers Launched\": 2,\n          \"Shared Hit Blocks\": 3654,\n          \"Shared Read Blocks\": 0,\n          \"Shared Dirtied Blocks\": 0,\n          \"Shared Written Blocks\": 0,\n          \"Local Hit Blocks\": 0,\n          \"Local Read Blocks\": 0,\n          \"Local Dirtied Blocks\": 0,\n          \"Local Written Blocks\": 0,\n          \"Temp Read Blocks\": 0,\n          \"Temp Written Blocks\": 0,\n          \"Plans\": [\n            {\n              \"Node Type\": \"Sort\",\n              \"Parent Relationship\": \"Outer\",\n              \"Parallel Aware\": false,\n              \"Async Capable\": false,\n              \"Startup Cost\": 5724.73,\n              \"Total Cost\": 5724.74,\n              \"Plan Rows\": 4,\n              \"Plan Width\": 20,\n              \"Actual Startup Time\": 17.132,\n              \"Actual Total Time\": 17.133,\n              \"Actual Rows\": 4,\n              \"Actual Loops\": 3,\n              \"Sort Key\": [\"\\\"Status\\\"\"],\n              \"Sort Method\": \"quicksort\",\n              \"Sort Space Used\": 25,\n              \"Sort Space Type\": \"Memory\",\n              \"Shared Hit Blocks\": 3654,\n              \"Shared Read Blocks\": 0,\n              \"Shared Dirtied Blocks\": 0,\n              \"Shared Written Blocks\": 0,\n              \"Local Hit Blocks\": 0,\n              \"Local Read Blocks\": 0,\n              \"Local Dirtied Blocks\": 0,\n              \"Local Written Blocks\": 0,\n              \"Temp Read Blocks\": 0,\n              \"Temp Written Blocks\": 0,\n              \"Workers\": [\n                {\n                  \"Worker Number\": 0,\n                  \"Sort Method\": \"quicksort\",\n                  \"Sort Space Used\": 25,\n                  \"Sort Space Type\": \"Memory\"\n                },\n                {\n                  \"Worker Number\": 1,\n                  \"Sort Method\": \"quicksort\",\n                  \"Sort Space Used\": 25,\n                  \"Sort Space Type\": \"Memory\"\n                }\n              ],\n              \"Plans\": [\n                {\n                  \"Node Type\": \"Aggregate\",\n                  \"Strategy\": \"Hashed\",\n                  \"Partial Mode\": \"Partial\",\n                  \"Parent Relationship\": \"Outer\",\n                  \"Parallel Aware\": false,\n                  \"Async Capable\": false,\n                  \"Startup Cost\": 5724.65,\n                  \"Total Cost\": 5724.69,\n                  \"Plan Rows\": 4,\n                  \"Plan Width\": 20,\n                  \"Actual Startup Time\": 17.106,\n                  \"Actual Total Time\": 17.108,\n                  \"Actual Rows\": 4,\n                  \"Actual Loops\": 3,\n                  \"Group Key\": [\"\\\"Status\\\"\"],\n                  \"Planned Partitions\": 0,\n                  \"HashAgg Batches\": 1,\n                  \"Peak Memory Usage\": 24,\n                  \"Disk Usage\": 0,\n                  \"Shared Hit Blocks\": 3640,\n                  \"Shared Read Blocks\": 0,\n                  \"Shared Dirtied Blocks\": 0,\n                  \"Shared Written Blocks\": 0,\n                  \"Local Hit Blocks\": 0,\n                  \"Local Read Blocks\": 0,\n                  \"Local Dirtied Blocks\": 0,\n                  \"Local Written Blocks\": 0,\n                  \"Temp Read Blocks\": 0,\n                  \"Temp Written Blocks\": 0,\n                  \"Workers\": [\n                    {\n                      \"Worker Number\": 0,\n                      \"HashAgg Batches\": 1,\n                      \"Peak Memory Usage\": 24,\n                      \"Disk Usage\": 0\n                    },\n                    {\n                      \"Worker Number\": 1,\n                      \"HashAgg Batches\": 1,\n                      \"Peak Memory Usage\": 24,\n                      \"Disk Usage\": 0\n                    }\n                  ],\n                  \"Plans\": [\n                    {\n                      \"Node Type\": \"Seq Scan\",\n                      \"Parent Relationship\": \"Outer\",\n                      \"Parallel Aware\": true,\n                      \"Async Capable\": false,\n                      \"Relation Name\": \"inspections\",\n                      \"Alias\": \"inspections\",\n                      \"Startup Cost\": 0.00,\n                      \"Total Cost\": 5099.26,\n                      \"Plan Rows\": 83386,\n                      \"Plan Width\": 8,\n                      \"Actual Startup Time\": 0.006,\n                      \"Actual Total Time\": 11.934,\n                      \"Actual Rows\": 66709,\n                      \"Actual Loops\": 3,\n                      \"Filter\": \"(\\\"CreatedAt\\\" >= (now() - '30 days'::interval))\",\n                      \"Rows Removed by Filter\": 0,\n                      \"Shared Hit Blocks\": 3640,\n                      \"Shared Read Blocks\": 0,\n                      \"Shared Dirtied Blocks\": 0,\n                      \"Shared Written Blocks\": 0,\n                      \"Local Hit Blocks\": 0,\n                      \"Local Read Blocks\": 0,\n                      \"Local Dirtied Blocks\": 0,\n                      \"Local Written Blocks\": 0,\n                      \"Temp Read Blocks\": 0,\n                      \"Temp Written Blocks\": 0,\n                      \"Workers\": [\n                      ]\n                    }\n                  ]\n                }\n              ]\n            }\n          ]\n        }\n      ]\n    },\n    \"Planning\": {\n      \"Shared Hit Blocks\": 14,\n      \"Shared Read Blocks\": 0,\n      \"Shared Dirtied Blocks\": 0,\n      \"Shared Written Blocks\": 0,\n      \"Local Hit Blocks\": 0,\n      \"Local Read Blocks\": 0,\n      \"Local Dirtied Blocks\": 0,\n      \"Local Written Blocks\": 0,\n      \"Temp Read Blocks\": 0,\n      \"Temp Written Blocks\": 0\n    },\n    \"Planning Time\": 0.289,\n    \"Triggers\": [\n    ],\n    \"Execution Time\": 22.433\n  }\n]"
+        }
+      ]
+    },
+    "andon-open": {
+      "scenario": "andon-open",
+      "description": "未结束 Andon 呼叫（大屏轮播）",
+      "plan": [
+        {
+          "QUERY PLAN": "[\n  {\n    \"Plan\": {\n      \"Node Type\": \"Limit\",\n      \"Parallel Aware\": false,\n      \"Async Capable\": false,\n      \"Startup Cost\": 3.10,\n      \"Total Cost\": 3.15,\n      \"Plan Rows\": 20,\n      \"Plan Width\": 483,\n      \"Actual Startup Time\": 0.035,\n      \"Actual Total Time\": 0.037,\n      \"Actual Rows\": 20,\n      \"Actual Loops\": 1,\n      \"Shared Hit Blocks\": 2,\n      \"Shared Read Blocks\": 0,\n      \"Shared Dirtied Blocks\": 0,\n      \"Shared Written Blocks\": 0,\n      \"Local Hit Blocks\": 0,\n      \"Local Read Blocks\": 0,\n      \"Local Dirtied Blocks\": 0,\n      \"Local Written Blocks\": 0,\n      \"Temp Read Blocks\": 0,\n      \"Temp Written Blocks\": 0,\n      \"Plans\": [\n        {\n          \"Node Type\": \"Sort\",\n          \"Parent Relationship\": \"Outer\",\n          \"Parallel Aware\": false,\n          \"Async Capable\": false,\n          \"Startup Cost\": 3.10,\n          \"Total Cost\": 3.17,\n          \"Plan Rows\": 28,\n          \"Plan Width\": 483,\n          \"Actual Startup Time\": 0.033,\n          \"Actual Total Time\": 0.034,\n          \"Actual Rows\": 20,\n          \"Actual Loops\": 1,\n          \"Sort Key\": [\"\\\"CallNumber\\\" DESC\"],\n          \"Sort Method\": \"quicksort\",\n          \"Sort Space Used\": 32,\n          \"Sort Space Type\": \"Memory\",\n          \"Shared Hit Blocks\": 2,\n          \"Shared Read Blocks\": 0,\n          \"Shared Dirtied Blocks\": 0,\n          \"Shared Written Blocks\": 0,\n          \"Local Hit Blocks\": 0,\n          \"Local Read Blocks\": 0,\n          \"Local Dirtied Blocks\": 0,\n          \"Local Written Blocks\": 0,\n          \"Temp Read Blocks\": 0,\n          \"Temp Written Blocks\": 0,\n          \"Plans\": [\n            {\n              \"Node Type\": \"Seq Scan\",\n              \"Parent Relationship\": \"Outer\",\n              \"Parallel Aware\": false,\n              \"Async Capable\": false,\n              \"Relation Name\": \"andon_calls\",\n              \"Alias\": \"andon_calls\",\n              \"Startup Cost\": 0.00,\n              \"Total Cost\": 2.42,\n              \"Plan Rows\": 28,\n              \"Plan Width\": 483,\n              \"Actual Startup Time\": 0.007,\n              \"Actual Total Time\": 0.010,\n              \"Actual Rows\": 28,\n              \"Actual Loops\": 1,\n              \"Filter\": \"(\\\"Status\\\" = ANY ('{0,1}'::integer[]))\",\n              \"Rows Removed by Filter\": 6,\n              \"Shared Hit Blocks\": 2,\n              \"Shared Read Blocks\": 0,\n              \"Shared Dirtied Blocks\": 0,\n              \"Shared Written Blocks\": 0,\n              \"Local Hit Blocks\": 0,\n              \"Local Read Blocks\": 0,\n              \"Local Dirtied Blocks\": 0,\n              \"Local Written Blocks\": 0,\n              \"Temp Read Blocks\": 0,\n              \"Temp Written Blocks\": 0\n            }\n          ]\n        }\n      ]\n    },\n    \"Planning\": {\n      \"Shared Hit Blocks\": 75,\n      \"Shared Read Blocks\": 0,\n      \"Shared Dirtied Blocks\": 0,\n      \"Shared Written Blocks\": 0,\n      \"Local Hit Blocks\": 0,\n      \"Local Read Blocks\": 0,\n      \"Local Dirtied Blocks\": 0,\n      \"Local Written Blocks\": 0,\n      \"Temp Read Blocks\": 0,\n      \"Temp Written Blocks\": 0\n    },\n    \"Planning Time\": 0.399,\n    \"Triggers\": [\n    ],\n    \"Execution Time\": 0.057\n  }\n]"
+        }
+      ]
+    },
+    "outbox-pending": {
+      "scenario": "outbox-pending",
+      "description": "Outbox 待投递扫描（分发器每 5 秒执行）",
+      "plan": [
+        {
+          "QUERY PLAN": "[\n  {\n    \"Plan\": {\n      \"Node Type\": \"Limit\",\n      \"Parallel Aware\": false,\n      \"Async Capable\": false,\n      \"Startup Cost\": 8.17,\n      \"Total Cost\": 8.18,\n      \"Plan Rows\": 1,\n      \"Plan Width\": 973,\n      \"Actual Startup Time\": 0.016,\n      \"Actual Total Time\": 0.016,\n      \"Actual Rows\": 0,\n      \"Actual Loops\": 1,\n      \"Shared Hit Blocks\": 1,\n      \"Shared Read Blocks\": 0,\n      \"Shared Dirtied Blocks\": 0,\n      \"Shared Written Blocks\": 0,\n      \"Local Hit Blocks\": 0,\n      \"Local Read Blocks\": 0,\n      \"Local Dirtied Blocks\": 0,\n      \"Local Written Blocks\": 0,\n      \"Temp Read Blocks\": 0,\n      \"Temp Written Blocks\": 0,\n      \"Plans\": [\n        {\n          \"Node Type\": \"Sort\",\n          \"Parent Relationship\": \"Outer\",\n          \"Parallel Aware\": false,\n          \"Async Capable\": false,\n          \"Startup Cost\": 8.17,\n          \"Total Cost\": 8.18,\n          \"Plan Rows\": 1,\n          \"Plan Width\": 973,\n          \"Actual Startup Time\": 0.015,\n          \"Actual Total Time\": 0.016,\n          \"Actual Rows\": 0,\n          \"Actual Loops\": 1,\n          \"Sort Key\": [\"\\\"OccurredAt\\\"\"],\n          \"Sort Method\": \"quicksort\",\n          \"Sort Space Used\": 25,\n          \"Sort Space Type\": \"Memory\",\n          \"Shared Hit Blocks\": 1,\n          \"Shared Read Blocks\": 0,\n          \"Shared Dirtied Blocks\": 0,\n          \"Shared Written Blocks\": 0,\n          \"Local Hit Blocks\": 0,\n          \"Local Read Blocks\": 0,\n          \"Local Dirtied Blocks\": 0,\n          \"Local Written Blocks\": 0,\n          \"Temp Read Blocks\": 0,\n          \"Temp Written Blocks\": 0,\n          \"Plans\": [\n            {\n              \"Node Type\": \"Index Scan\",\n              \"Parent Relationship\": \"Outer\",\n              \"Parallel Aware\": false,\n              \"Async Capable\": false,\n              \"Scan Direction\": \"Forward\",\n              \"Index Name\": \"IX_outbox_messages_Status_NextRetryAt\",\n              \"Relation Name\": \"outbox_messages\",\n              \"Alias\": \"outbox_messages\",\n              \"Startup Cost\": 0.14,\n              \"Total Cost\": 8.16,\n              \"Plan Rows\": 1,\n              \"Plan Width\": 973,\n              \"Actual Startup Time\": 0.008,\n              \"Actual Total Time\": 0.009,\n              \"Actual Rows\": 0,\n              \"Actual Loops\": 1,\n              \"Index Cond\": \"((\\\"Status\\\" = 0) AND (\\\"NextRetryAt\\\" <= now()))\",\n              \"Rows Removed by Index Recheck\": 0,\n              \"Shared Hit Blocks\": 1,\n              \"Shared Read Blocks\": 0,\n              \"Shared Dirtied Blocks\": 0,\n              \"Shared Written Blocks\": 0,\n              \"Local Hit Blocks\": 0,\n              \"Local Read Blocks\": 0,\n              \"Local Dirtied Blocks\": 0,\n              \"Local Written Blocks\": 0,\n              \"Temp Read Blocks\": 0,\n              \"Temp Written Blocks\": 0\n            }\n          ]\n        }\n      ]\n    },\n    \"Planning\": {\n      \"Shared Hit Blocks\": 102,\n      \"Shared Read Blocks\": 0,\n      \"Shared Dirtied Blocks\": 0,\n      \"Shared Written Blocks\": 0,\n      \"Local Hit Blocks\": 0,\n      \"Local Read Blocks\": 0,\n      \"Local Dirtied Blocks\": 0,\n      \"Local Written Blocks\": 0,\n      \"Temp Read Blocks\": 0,\n      \"Temp Written Blocks\": 0\n    },\n    \"Planning Time\": 0.503,\n    \"Triggers\": [\n    ],\n    \"Execution Time\": 0.035\n  }\n]"
+        }
+      ]
+    }
+  },
+  "benchmarks": [
+    {
+      "scenario": "sn-lookup",
+      "description": "按 SN 查详情（过站追溯入口，23 亿行级表的等价场景）",
+      "iterations": 200,
+      "concurrency": 8,
+      "wallClockSeconds": 0.09,
+      "throughputPerSecond": 2212.7,
+      "p50Ms": 0,
+      "p95Ms": 1,
+      "p99Ms": 70,
+      "maxMs": 74,
+      "minMs": 0,
+      "meanMs": 2.86,
+      "sampleCount": 200
+    },
+    {
+      "scenario": "inspection-by-sn",
+      "description": "按 SN 取检验历史（追溯报告）",
+      "iterations": 200,
+      "concurrency": 8,
+      "wallClockSeconds": 0.03,
+      "throughputPerSecond": 6051.1,
+      "p50Ms": 1,
+      "p95Ms": 1,
+      "p99Ms": 6,
+      "maxMs": 13,
+      "minMs": 0,
+      "meanMs": 0.94,
+      "sampleCount": 200
+    },
+    {
+      "scenario": "sn-status-stats",
+      "description": "SN 状态分布统计（OEE / 大屏）",
+      "iterations": 200,
+      "concurrency": 8,
+      "wallClockSeconds": 5.21,
+      "throughputPerSecond": 38.4,
+      "p50Ms": 159,
+      "p95Ms": 384,
+      "p99Ms": 439,
+      "maxMs": 461,
+      "minMs": 94,
+      "meanMs": 203.82,
+      "sampleCount": 200
+    },
+    {
+      "scenario": "inspection-daily",
+      "description": "按时间区间统计检验单（报表口径）",
+      "iterations": 200,
+      "concurrency": 8,
+      "wallClockSeconds": 1.7,
+      "throughputPerSecond": 117.6,
+      "p50Ms": 60,
+      "p95Ms": 108,
+      "p99Ms": 117,
+      "maxMs": 125,
+      "minMs": 33,
+      "meanMs": 66.72,
+      "sampleCount": 200
+    },
+    {
+      "scenario": "outbox-pending",
+      "description": "Outbox 待投递扫描（分发器每 5 秒执行）",
+      "iterations": 200,
+      "concurrency": 8,
+      "wallClockSeconds": 0.04,
+      "throughputPerSecond": 4809.7,
+      "p50Ms": 1,
+      "p95Ms": 2,
+      "p99Ms": 13,
+      "maxMs": 17,
+      "minMs": 0,
+      "meanMs": 1.32,
+      "sampleCount": 200
+    },
+    {
+      "scenario": "andon-open",
+      "description": "未结束 Andon 呼叫（大屏轮播）",
+      "iterations": 200,
+      "concurrency": 8,
+      "wallClockSeconds": 0.06,
+      "throughputPerSecond": 3389.8,
+      "p50Ms": 1,
+      "p95Ms": 2,
+      "p99Ms": 13,
+      "maxMs": 17,
+      "minMs": 0,
+      "meanMs": 1.47,
+      "sampleCount": 200
+    }
+  ]
+}

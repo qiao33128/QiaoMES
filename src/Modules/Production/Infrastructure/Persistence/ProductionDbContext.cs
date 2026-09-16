@@ -80,6 +80,9 @@ public class ProductionDbContext(DbContextOptions<ProductionDbContext> options) 
         serialNumber.Property(s => s.Status).HasConversion<int>();
         serialNumber.HasIndex(s => s.Sn).IsUnique();
         serialNumber.HasIndex(s => new { s.WorkOrderId, s.Status });
+        // 阶段 4 · 4.6 压测发现的扫描热点：报表 / 大屏按「时间区间 + 状态分组」统计 SN，
+        // 没有该索引时 100 万行就要全表扫描（P95 300ms+），加后走索引扫描
+        serialNumber.HasIndex(s => new { s.CreatedAt, s.Status });
         serialNumber.HasQueryFilter(s => !s.IsDeleted);
         serialNumber.HasMany(s => s.Trackings)
             .WithOne()
