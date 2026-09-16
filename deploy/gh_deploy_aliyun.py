@@ -19,6 +19,8 @@ QiaoMES · GitHub Actions → 阿里云轻量应用服务器 自动部署脚本
 1. 服务器端脚本用 base64 内联下发，避免云端 shell 吞引号 / CRLF 问题；
    **编排文件也同样内联**（取自当次提交的仓库文件）—— 实测服务器直连
    raw.githubusercontent.com 会偶发 `curl: (56) … SSL_ERROR_SYSCALL, errno 110`，上一版部署就是死在这一步；
+   脚本含内联编排文件后 base64 约 25000 字符，**超过 RunCommand 单次约 6000 字符的上限**
+   （会报 `CmdContent.ExceedLimit`），因此改为分块追加到 `/root/qiaomes_deploy.b64` 再统一解码；
 2. 用 `nohup` 后台执行 + 外层轮询日志 —— RunCommand 单次调用 15 分钟超时会杀掉耗时任务；
 3. `.env` 采用**合并写入**：只覆盖本次显式提供的键，其余保留服务器上已有值
    （最重要的一条：POSTGRES_PASSWORD 必须与数据库卷初始化时一致，不能被 CI 覆盖成默认值）；
@@ -306,16 +308,53 @@ def build_server_script():
     return script
 
 
+# RunCommand 的 CommandContent 上限约 6000 字符（超了报 CmdContent.ExceedLimit），
+# 而「服务器脚本 + 内联编排文件」base64 后约 25000 字符，所以必须分块追加再解码。
+CHUNK_SIZE = 4500
+
+REMOTE_SCRIPT = "/root/qiaomes_deploy.sh"
+REMOTE_B64 = "/root/qiaomes_deploy.b64"
+
+
+def upload_script(base64_text):
+    """分块把 base64 脚本写到服务器并解码，返回解出的脚本字节数（失败返回 0）。"""
+    # base64 字母表只有 A-Za-z0-9+/=，不含空格与 shell 元字符，可以不加引号直接 echo（顺带绕开云端 shell 吞引号的问题）
+    run_shell("rm -f %s" % REMOTE_B64, "qiaomes-upload-reset")
+
+    chunks = [base64_text[i:i + CHUNK_SIZE] for i in range(0, len(base64_text), CHUNK_SIZE)]
+    print("=== 分块上传部署脚本：base64 %d 字符 / %d 块（每块 %d）" % (len(base64_text), len(chunks), CHUNK_SIZE))
+
+    for index, chunk in enumerate(chunks, start=1):
+        output = run_shell("echo %s >> %s" % (chunk, REMOTE_B64), "qiaomes-upload-%d" % index)
+        if output.strip():
+            print("    第 %d 块返回了非预期输出：%s" % (index, output.strip()[:200]))
+
+    decode = (
+        "base64 -d {b64} > {script} && rm -f {b64} && chmod +x {script} && wc -c < {script}"
+    ).format(b64=REMOTE_B64, script=REMOTE_SCRIPT)
+    output = run_shell(decode, "qiaomes-upload-decode")
+
+    for line in reversed(output.splitlines()):
+        line = line.strip()
+        if line.isdigit():
+            return int(line)
+    print("    decode 输出：%s" % output.strip()[:300])
+    return 0
+
+
 def deploy():
     script = build_server_script()
     b64 = base64.b64encode(script.encode("utf-8")).decode("ascii")
 
-    print("=== 下发部署脚本到服务器并后台执行")
-    start = (
-        "echo {b64} | base64 -d > /root/qiaomes_deploy.sh && chmod +x /root/qiaomes_deploy.sh && "
-        "rm -f {log} && nohup bash /root/qiaomes_deploy.sh > {log} 2>&1 & echo STARTED"
-    ).format(b64=b64, log=DEPLOY_LOG)
+    print("=== 下发部署脚本到服务器")
+    size = upload_script(b64)
+    # 编排文件内联在脚本里，正常情况下 10KB 以上；太小说明拼接/解码出了问题
+    if size < 5000:
+        sys.exit("ERROR: 部署脚本上传失败或内容不完整（服务器上只有 %d 字节）" % size)
+    print("=== 服务器端脚本就绪（%d 字节），后台执行" % size)
 
+    start = "rm -f {log} && nohup bash {script} > {log} 2>&1 & echo STARTED".format(
+        log=DEPLOY_LOG, script=REMOTE_SCRIPT)
     if "STARTED" not in run_shell(start, "qiaomes-start-deploy"):
         sys.exit("ERROR: 后台部署脚本启动失败")
 

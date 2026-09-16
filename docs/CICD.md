@@ -181,6 +181,7 @@ docker compose -f docker-compose.deploy.yml up -d --force-recreate api web
 | 日志里 `DEPLOY-FAIL-LOGIN` | 镜像仓用户名/密码错（ACR 个人版要用**固定密码**） |
 | 日志里 `DEPLOY-FAIL-HEALTH-000` | 容器起来了但 API 没就绪 → 日志里会跟一段 `docker logs qiaomes-api`，多数是数据库迁移失败或 `POSTGRES_PASSWORD` 被改错 |
 | 日志里 `DEPLOY-FAIL-COMPOSE` | 只出现在"回退下载"路径（CI 没内联编排文件时）：服务器访问 GitHub raw 失败，实测偶发 `curl: (56) SSL_ERROR_SYSCALL, errno 110` 超时。正常路径编排文件由 CI 内联，不走网络 |
+| 部署脚本报 `CmdContent.ExceedLimit` | RunCommand 单次命令约 **6000 字符**上限。脚本（含内联编排文件）base64 后约 25000 字符，超限，所以 `deploy/gh_deploy_aliyun.py` 改成**分块追加到 `qiaomes_deploy.b64` 再统一解码**（每块 4500 字符，约 6 次 RunCommand）。以后要内联更大的东西，调小 `CHUNK_SIZE` 即可 |
 | 部署成功但域名打不开 | `qiaomes-web` 没挂上 `kanban_net`，或 Caddyfile 里的 mes 站点被看板站的 CI 覆盖了（看板仓 `deploy/Caddyfile` 必须带 mes 段） |
 | 前端页面/菜单是旧的 | 镜像没更新：确认 `up -d` 带了 `--force-recreate`（脚本里有），或手动 `docker compose pull` 后重建 |
 
