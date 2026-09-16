@@ -38,6 +38,8 @@ public static class IdentityDbSeeder
                 Permissions.Equipment.Manage,
                 Permissions.Reporting.Read,
                 Permissions.Reporting.Manage,
+                Permissions.Integration.Read,
+                Permissions.Integration.Manage,
                 Permissions.Users.Read,
                 Permissions.Roles.Read,
             ]

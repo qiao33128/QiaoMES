@@ -30,6 +30,8 @@ public static class PermissionCatalog
         new("设备", Permissions.Equipment.Read, "查看设备与 Andon"),
         new("设备", Permissions.Equipment.Operate, "设备状态操作与 Andon 呼叫"),
         new("设备", Permissions.Equipment.Manage, "设备台账维护"),
+        new("集成", Permissions.Integration.Read, "查看开放 API 客户端"),
+        new("集成", Permissions.Integration.Manage, "发放 / 停用开放 API 客户端"),
         new("报表", Permissions.Reporting.Read, "查看报表与班次"),
         new("报表", Permissions.Reporting.Manage, "班次与日历维护"),
         new("用户", Permissions.Users.Read, "查看用户"),

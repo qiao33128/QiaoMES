@@ -20,7 +20,10 @@ using QiaoMES.Equipment.Api;
 using QiaoMES.Equipment.Api.Hubs;
 using QiaoMES.Equipment.Infrastructure;
 using QiaoMES.Equipment.Infrastructure.Persistence;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 using QiaoMES.Api.EventHandlers;
+using QiaoMES.Infrastructure.Integrations;
 using QiaoMES.Infrastructure.Outbox;
 using QiaoMES.Reporting.Api;
 using QiaoMES.Reporting.Infrastructure;
@@ -66,6 +69,30 @@ builder.Services.AddReportingInfrastructure();
 // ---------- 模块间集成事件订阅（Outbox 异步投递）----------
 // 检验不合格 → 自动发起 Andon 呼叫（设备模块）；质量模块无需反向依赖设备模块
 builder.Services.AddIntegrationEvent<InspectionJudgedEvent, InspectionJudgedEventHandler>();
+// 设备采集上报（开放 API）→ 设备模块应用状态机
+builder.Services.AddIntegrationEvent<EquipmentTelemetryReceivedEvent, EquipmentTelemetryEventHandler>();
+
+// ---------- 对外集成（开放 API：独立鉴权 + 按密钥限流）----------
+builder.Services.AddIntegrations();
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy(IntegrationExtensions.OpenApiRateLimitPolicy, context =>
+    {
+        // 有密钥按密钥分片（每个外部系统一份配额），无密钥退化为按来源 IP
+        var apiKey = context.Request.Headers[ApiKeyAuthenticationDefaults.HeaderName].ToString();
+        var partitionKey = string.IsNullOrWhiteSpace(apiKey)
+            ? $"ip:{context.Connection.RemoteIpAddress}"
+            : $"key:{ApiClient.ComputeHash(apiKey)[..16]}";
+
+        return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 120,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+        });
+    });
+});
 
 // ---------- 让工作单元收集到全部模块 DbContext ----------
 // EF 的 AddDbContext<T> 只注册具体类型，不会注册 DbContext 基类；
@@ -114,7 +141,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 return Task.CompletedTask;
             }
         };
-    });
+    })
+    // 开放 API 独立鉴权：X-Api-Key（与 JWT 并存，可各自吊销、各自限流）
+    .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(
+        ApiKeyAuthenticationDefaults.Scheme, null);
 builder.Services.AddAuthorization();
 
 // ---------- 通用基础设施 ----------
@@ -172,6 +202,7 @@ app.UseCors("Frontend");
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 app.MapControllers();
 app.MapHub<ProductionHub>("/hubs/production");
@@ -197,6 +228,7 @@ using (var scope = app.Services.CreateScope())
     var equipmentDb = services.GetRequiredService<EquipmentDbContext>();
     var reportingDb = services.GetRequiredService<ReportingDbContext>();
     var outboxDb = services.GetRequiredService<OutboxDbContext>();
+    var integrationDb = services.GetRequiredService<IntegrationDbContext>();
     await identityDb.Database.MigrateAsync();
     await productionDb.Database.MigrateAsync();
     await masterDataDb.Database.MigrateAsync();
@@ -204,6 +236,7 @@ using (var scope = app.Services.CreateScope())
     await equipmentDb.Database.MigrateAsync();
     await reportingDb.Database.MigrateAsync();
     await outboxDb.Database.MigrateAsync();
+    await integrationDb.Database.MigrateAsync();
 
     var passwordHasher = services.GetRequiredService<IPasswordHasher>();
     await IdentityDbSeeder.SeedAsync(identityDb, passwordHasher);

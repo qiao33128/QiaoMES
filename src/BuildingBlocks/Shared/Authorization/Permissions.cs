@@ -54,6 +54,16 @@ public static class Permissions
         public const string Manage = "equipment:manage";
     }
 
+    /// <summary>对外集成权限（开放 API 客户端管理）。</summary>
+    public static class Integration
+    {
+        /// <summary>查看开放 API 客户端。</summary>
+        public const string Read = "integration:read";
+
+        /// <summary>发放 / 停用开放 API 客户端。</summary>
+        public const string Manage = "integration:manage";
+    }
+
     /// <summary>报表 / 班次 / 日历权限。</summary>
     public static class Reporting
     {

@@ -79,3 +79,14 @@ public sealed record MaterialLotRejectedEvent(
     string MaterialCode,
     string? InspectionNumber,
     string? Reason) : IntegrationEvent;
+
+/// <summary>
+/// 设备数据采集上报（来自 MQTT / OPC UA 网关，经开放 API 接入）。
+/// </summary>
+/// <param name="Status">设备状态（0 运行 / 1 待机 / 2 故障 / 3 保养 / 4 离线）。</param>
+public sealed record EquipmentTelemetryReceivedEvent(
+    string EquipmentCode,
+    int Status,
+    string? ReasonCode,
+    string? Reason,
+    DateTime ReportedAt) : IntegrationEvent;
