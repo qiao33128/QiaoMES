@@ -1,37 +1,37 @@
 {
-  "generatedAt": "2026-09-16T09:01:07.2701130+08:00",
+  "generatedAt": "2026-09-16T09:31:31.0114795+08:00",
   "range": {
-    "days": 7,
     "to": "2026-09-16",
+    "days": 7,
     "from": "2026-09-09"
   },
-  "seedCount": 1000000,
+  "seedCount": 10000000,
   "realtimeAggregation": {
-    "iterations": 15,
-    "p50Ms": 1153,
-    "p95Ms": 1479,
-    "maxMs": 1479,
-    "meanMs": 1186.9
+    "iterations": 10,
+    "p50Ms": 7377,
+    "p95Ms": 8316,
+    "maxMs": 8316,
+    "meanMs": 7337.8
   },
   "precomputedRead": {
-    "iterations": 15,
-    "p50Ms": 11,
-    "p95Ms": 16,
-    "maxMs": 16,
-    "meanMs": 11.1
+    "iterations": 10,
+    "p50Ms": 13,
+    "p95Ms": 24,
+    "maxMs": 24,
+    "meanMs": 14.2
   },
   "oeePrecomputedRead": {
-    "iterations": 15,
+    "iterations": 10,
     "p50Ms": 9,
     "p95Ms": 24,
     "maxMs": 24,
-    "meanMs": 10.6
+    "meanMs": 10.8
   },
-  "p95Speedup": 92.4,
+  "p95Speedup": 346.5,
   "rebuild": {
     "from": "2026-09-09",
     "to": "2026-09-16",
-    "shiftsRebuilt": 144,
-    "lastComputedAt": "2026-09-16T01:01:06.83462Z"
+    "shiftsRebuilt": 192,
+    "lastComputedAt": "2026-09-16T01:31:30.690412Z"
   }
 }
