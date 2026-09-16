@@ -54,4 +54,8 @@ export const reportApi = {
   exportCsv(type, params) {
     return http.get('/reports/export', { params: { type, ...params }, responseType: 'blob' })
   },
+  /** 打印视图（自包含 HTML，浏览器可另存为 PDF） */
+  printHtml(type, params) {
+    return http.get('/reports/print-html', { params: { type, ...params }, responseType: 'text' })
+  },
 }

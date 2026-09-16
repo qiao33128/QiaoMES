@@ -27,15 +27,20 @@
           <el-button type="primary" :icon="Search" :loading="loading" @click="loadAll">查询</el-button>
         </el-form-item>
         <el-form-item style="float: right">
-          <el-dropdown @command="exportCsv">
-            <el-button :icon="Download">导出 CSV<el-icon class="el-icon--right"><ArrowDown /></el-icon></el-button>
+          <el-dropdown @command="handleCommand">
+            <el-button :icon="Download">导出 / 打印<el-icon class="el-icon--right"><ArrowDown /></el-icon></el-button>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="oee">OEE 报表</el-dropdown-item>
-                <el-dropdown-item command="shift">按班次产量良率</el-dropdown-item>
-                <el-dropdown-item command="quality">质量指标 + 不良 TOP</el-dropdown-item>
-                <el-dropdown-item command="achievement">工单达成率</el-dropdown-item>
-                <el-dropdown-item command="downtime">停机 Pareto</el-dropdown-item>
+                <el-dropdown-item command="export:oee">导出 CSV · OEE 报表</el-dropdown-item>
+                <el-dropdown-item command="export:shift">导出 CSV · 按班次产量良率</el-dropdown-item>
+                <el-dropdown-item command="export:quality">导出 CSV · 质量指标 + 不良 TOP</el-dropdown-item>
+                <el-dropdown-item command="export:achievement">导出 CSV · 工单达成率</el-dropdown-item>
+                <el-dropdown-item command="export:downtime">导出 CSV · 停机 Pareto</el-dropdown-item>
+                <el-dropdown-item divided command="print:oee">打印 / 另存 PDF · OEE</el-dropdown-item>
+                <el-dropdown-item command="print:shift">打印 / 另存 PDF · 按班次</el-dropdown-item>
+                <el-dropdown-item command="print:quality">打印 / 另存 PDF · 质量</el-dropdown-item>
+                <el-dropdown-item command="print:achievement">打印 / 另存 PDF · 达成率</el-dropdown-item>
+                <el-dropdown-item command="print:downtime">打印 / 另存 PDF · 停机</el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -546,6 +551,37 @@ async function saveCalendarDay() {
   } finally {
     submitting.value = false
   }
+}
+
+function handleCommand(command) {
+  const [action, type] = String(command).split(':')
+  if (action === 'print') {
+    printReport(type)
+    return
+  }
+  exportCsv(type)
+}
+
+/** 打印 / 另存 PDF：先带 JWT 取回自包含 HTML，再写入新窗口唤起打印（服务端不引入 PDF 库） */
+async function printReport(type) {
+  const html = await reportApi.printHtml(type, {
+    from: query.from || undefined,
+    to: query.to || undefined,
+    lineName: query.lineName || undefined,
+  })
+
+  const target = window.open('', '_blank')
+  if (!target) {
+    ElMessage.warning('浏览器阻止了新窗口，请允许弹窗后重试')
+    return
+  }
+
+  target.document.open()
+  target.document.write(html)
+  target.document.close()
+
+  // 等样式与中文字体就绪再唤起打印，否则容易打出空白页
+  setTimeout(() => target.print(), 400)
 }
 
 async function exportCsv(type) {

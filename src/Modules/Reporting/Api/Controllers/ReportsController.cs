@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -240,6 +241,199 @@ public class ReportsController(
         bodyBytes.CopyTo(bytes, preamble.Length);
 
         return File(bytes, "text/csv; charset=utf-8", $"report-{type}-{DateTime.Now:yyyyMMddHHmm}.csv");
+    }
+
+    /// <summary>
+    /// 打印视图：返回**自包含的 HTML**，供浏览器「打印 → 另存为 PDF」。<para>
+    /// 刻意**不引入 PDF 生成库**（QuestPDF/iText 都要拖包、还要处理中文字体嵌入与分页）——
+    /// 服务端只负责数据与版式，字体与分页交给浏览器；前端用 fetch 拿到 HTML 后写入新窗口打印，
+    /// 因此能正常携带 JWT（新窗口直接打开 URL 是带不上鉴权头的）。
+    /// </para>
+    /// </summary>
+    [HttpGet("print-html")]
+    [HasPermission(Permissions.Reporting.Read)]
+    public async Task<IActionResult> GetPrintHtml(
+        [FromQuery] string type = "oee",
+        [FromQuery] DateOnly? from = null,
+        [FromQuery] DateOnly? to = null,
+        [FromQuery] string? lineName = null,
+        CancellationToken cancellationToken = default)
+    {
+        var request = new MetricsRangeRequest(from, to, lineName);
+        var normalized = type.Trim().ToLowerInvariant();
+
+        var title = normalized switch
+        {
+            "shift" => "按班次产量与质量报表",
+            "quality" => "质量指标报表",
+            "achievement" => "工单达成率报表",
+            "downtime" => "停机分析报表",
+            _ => "OEE 报表",
+        };
+
+        var scope = $"{request.From?.ToString("yyyy-MM-dd") ?? "最早"} ~ {request.To?.ToString("yyyy-MM-dd") ?? "今天"}"
+                    + (string.IsNullOrWhiteSpace(lineName) ? " · 全部产线" : $" · 产线 {lineName}")
+                    + $" · 生成于 {DateTime.Now:yyyy-MM-dd HH:mm}";
+
+        string[] headers;
+        var rows = new List<string[]>();
+
+        switch (normalized)
+        {
+            case "shift":
+            {
+                var result = await service.GetShiftMetricsAsync(request, cancellationToken);
+                if (result.IsFailure)
+                {
+                    return ApiResults.Problem(result.Error);
+                }
+
+                headers = ["生产日", "班次", "时间窗", "投产SN", "完工", "报废", "良率%", "检验单", "合格", "不合格", "FPY%"];
+                rows.AddRange(result.Value.Items.Select(item => new[]
+                {
+                    item.ProductionDate.ToString("yyyy-MM-dd"),
+                    $"{item.ShiftCode} {item.ShiftName}",
+                    $"{item.StartAtUtc.ToLocalTime():MM-dd HH:mm}~{item.EndAtUtc.ToLocalTime():MM-dd HH:mm}",
+                    item.TotalSn.ToString(),
+                    item.CompletedSn.ToString(),
+                    item.ScrappedSn.ToString(),
+                    item.YieldRate.ToString("0.00"),
+                    item.InspectionTotal.ToString(),
+                    item.InspectionPassed.ToString(),
+                    item.InspectionFailed.ToString(),
+                    item.Fpy.ToString("0.00"),
+                }));
+                break;
+            }
+
+            case "quality":
+            {
+                var result = await service.GetQualityMetricsAsync(request, 20, cancellationToken);
+                if (result.IsFailure)
+                {
+                    return ApiResults.Problem(result.Error);
+                }
+
+                headers = ["不良代码", "出现次数"];
+                rows.AddRange(result.Value.TopDefects.Select(item => new[] { item.DefectCode, item.Count.ToString() }));
+                break;
+            }
+
+            case "achievement":
+            {
+                var result = await service.GetAchievementAsync(request, 100, cancellationToken);
+                if (result.IsFailure)
+                {
+                    return ApiResults.Problem(result.Error);
+                }
+
+                headers = ["工单号", "产品编码", "计划数量", "完工数量", "达成率%"];
+                rows.AddRange(result.Value.Orders.Select(item => new[]
+                {
+                    item.OrderNumber,
+                    item.ProductCode,
+                    item.PlannedQuantity.ToString(),
+                    item.CompletedQuantity.ToString(),
+                    item.AchievementRate.ToString("0.00"),
+                }));
+                break;
+            }
+
+            case "downtime":
+            {
+                var result = await service.GetDowntimeAsync(request, 20, cancellationToken);
+                if (result.IsFailure)
+                {
+                    return ApiResults.Problem(result.Error);
+                }
+
+                headers = ["停机原因", "累计时长(分)", "次数"];
+                rows.AddRange(result.Value.ByReason.Select(item => new[]
+                {
+                    item.ReasonCode,
+                    Math.Round(item.TotalSeconds / 60d, 1).ToString("0.0"),
+                    item.Count.ToString(),
+                }));
+                break;
+            }
+
+            default:
+            {
+                var result = await service.GetOeeAsync(request, cancellationToken);
+                if (result.IsFailure)
+                {
+                    return ApiResults.Problem(result.Error);
+                }
+
+                headers = ["指标", "数值"];
+                var oee = result.Value;
+                rows.AddRange(new[]
+                {
+                    new[] { "计划生产时间(小时)", oee.PlannedHours.ToString("0.00") },
+                    new[] { "故障停机(小时)", oee.DowntimeHours.ToString("0.00") },
+                    new[] { "运行时间(小时)", oee.RunHours.ToString("0.00") },
+                    new[] { "可用率%", oee.Availability.ToString("0.00") },
+                    new[] { "性能%", oee.Performance.ToString("0.00") },
+                    new[] { "良率%", oee.Quality.ToString("0.00") },
+                    new[] { "OEE%", oee.Oee.ToString("0.00") },
+                    new[] { "投产 / 完工 / 报废", $"{oee.TotalSn} / {oee.CompletedSn} / {oee.ScrappedSn}" },
+                    new[] { "理论工时 / 实际工时(小时)", $"{oee.TheoreticalSeconds / 3600d:0.00} / {oee.ActualSeconds / 3600d:0.00}" },
+                });
+                break;
+            }
+        }
+
+        return Content(BuildPrintHtml(title, scope, headers, rows), "text/html; charset=utf-8");
+    }
+
+    /// <summary>生成打印友好的自包含 HTML（A4 版式 + 表头重复 + 斑马纹，可直接另存为 PDF）。</summary>
+    private static string BuildPrintHtml(string title, string scope, string[] headers, IReadOnlyList<string[]> rows)
+    {
+        var builder = new StringBuilder();
+        builder.Append("<!DOCTYPE html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\" />");
+        builder.Append($"<title>{WebUtility.HtmlEncode(title)}</title><style>");
+        builder.Append("@page{size:A4 landscape;margin:12mm}");
+        builder.Append("body{font-family:'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif;color:#1f2937;margin:0;padding:8px}");
+        builder.Append("h1{font-size:20px;margin:0 0 4px}");
+        builder.Append(".scope{font-size:12px;color:#6b7280;margin-bottom:14px}");
+        builder.Append("table{width:100%;border-collapse:collapse;font-size:12px}");
+        builder.Append("th{background:#f3f4f6;text-align:left;padding:7px 9px;border:1px solid #d1d5db;font-weight:600}");
+        builder.Append("td{padding:6px 9px;border:1px solid #e5e7eb}");
+        builder.Append("tbody tr:nth-child(even){background:#fafafa}");
+        builder.Append("thead{display:table-header-group}");   // 跨页重复表头
+        builder.Append(".foot{margin-top:14px;font-size:11px;color:#9ca3af}");
+        builder.Append("</style></head><body>");
+        builder.Append($"<h1>{WebUtility.HtmlEncode(title)}</h1>");
+        builder.Append($"<div class=\"scope\">{WebUtility.HtmlEncode(scope)} · 共 {rows.Count} 行</div>");
+        builder.Append("<table><thead><tr>");
+
+        foreach (var header in headers)
+        {
+            builder.Append($"<th>{WebUtility.HtmlEncode(header)}</th>");
+        }
+
+        builder.Append("</tr></thead><tbody>");
+
+        if (rows.Count == 0)
+        {
+            builder.Append($"<tr><td colspan=\"{headers.Length}\" style=\"text-align:center;color:#9ca3af\">该区间没有数据</td></tr>");
+        }
+
+        foreach (var row in rows)
+        {
+            builder.Append("<tr>");
+            foreach (var cell in row)
+            {
+                builder.Append($"<td>{WebUtility.HtmlEncode(cell)}</td>");
+            }
+            builder.Append("</tr>");
+        }
+
+        builder.Append("</tbody></table>");
+        builder.Append("<div class=\"foot\">QiaoMES · 数据来源于预聚合汇总表 / 实时聚合（未覆盖时自动回退）</div>");
+        builder.Append("</body></html>");
+
+        return builder.ToString();
     }
 
     /// <summary>拼一行 CSV（含逗号 / 引号的字段加引号并转义）。</summary>

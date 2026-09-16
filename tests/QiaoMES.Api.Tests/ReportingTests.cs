@@ -237,6 +237,27 @@ public class ReportingTests(QiaoMESApiFactory factory)
         response.EnsureSuccessStatusCode();
     }
 
+    [Fact]
+    public async Task 打印视图_返回自包含HTML且含打印版式()
+    {
+        var admin = await LoginAsync();
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        var range = $"from={today.AddDays(-6):yyyy-MM-dd}&to={today:yyyy-MM-dd}";
+
+        var response = await admin.GetAsync($"/api/reports/print-html?type=shift&{range}");
+
+        response.EnsureSuccessStatusCode();
+        Assert.Contains("text/html", response.Content.Headers.ContentType?.ToString() ?? string.Empty);
+
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("<!DOCTYPE html>", html);
+        Assert.Contains("按班次产量与质量报表", html);
+        Assert.Contains("<table>", html);
+        // A4 横向 + 跨页重复表头：PDF 分页体验的关键
+        Assert.Contains("size:A4 landscape", html);
+        Assert.Contains("display:table-header-group", html);
+    }
+
     private async Task<HttpClient> LoginAsync()
     {
         var client = factory.CreateClient();
