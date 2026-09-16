@@ -180,8 +180,12 @@ public class OpenApiTests(QiaoMESApiFactory factory)
         var admin = await LoginAsync();
         var (erp, _) = await CreateClientAsync(admin, "BOM 测试");
 
-        // 产品 Id 由内部主数据维护，这里通过开放接口映射取一个（干净库可能没有产品，此时跳过 BOM 断言）
-        var products = await erp.GetFromJsonAsync<JsonElement>("/api/open/v1/products?page=1&pageSize=5");
+        // 产品 Id 由内部主数据维护，这里通过开放接口映射取一个（干净库可能没有产品，此时跳过 BOM 断言）。
+        // 🔴 必须筛 isActive=true：整套集成测试共用一个真实数据库，其它用例（CSV 导入 / 主数据维护）
+        // 会把某些产品**停用**，而停用产品建 BOM 会被业务规则判成 Conflict（409），
+        // 之前不筛的写法会随“谁排在第一”而偶发失败（CI 上已经飘过一次）。
+        var products = await erp.GetFromJsonAsync<JsonElement>(
+            "/api/open/v1/products?page=1&pageSize=20&isActive=true");
         Assert.Equal(JsonValueKind.Array, products.GetProperty("items").ValueKind);
 
         var productList = products.GetProperty("items").EnumerateArray().ToList();

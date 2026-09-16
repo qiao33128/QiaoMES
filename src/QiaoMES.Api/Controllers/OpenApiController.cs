@@ -149,31 +149,38 @@ public class OpenApiController(
     // ---------------- 主数据交换（产品 / 物料 / BOM）----------------
 
     /// <summary>
-    /// 产品编码 → 产品 Id 映射。<para>ERP 下发工单前先用本接口把内部编码换成 ProductId（工单接口要求 ProductId）。</para>
+    /// 产品编码 → 产品 Id 映射。<para>
+    /// ERP 下发工单前先用本接口把内部编码换成 ProductId（工单接口要求 ProductId）。
+    /// 停用的产品仍可能被引用，故默认返回全部；只要「启用中」的请传 <c>isActive=true</c>。
+    /// </para>
     /// </summary>
     [HttpGet("products")]
     public async Task<IActionResult> GetProducts(
         [FromQuery] string? keyword = null,
+        [FromQuery] bool? isActive = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        var result = await productService.GetListAsync(new CatalogQueryRequest(page, pageSize, keyword), cancellationToken);
+        var result = await productService.GetListAsync(
+            new CatalogQueryRequest(page, pageSize, keyword, isActive), cancellationToken);
 
         return result.IsFailure
             ? ApiResults.Problem(result.Error)
             : Ok(new { totalCount = result.Value.TotalCount, items = result.Value.Items });
     }
 
-    /// <summary>物料查询（编码映射 / 对账）。</summary>
+    /// <summary>物料查询（编码映射 / 对账）。传 <c>isActive=true</c> 只取启用中的物料。</summary>
     [HttpGet("materials")]
     public async Task<IActionResult> GetMaterials(
         [FromQuery] string? keyword = null,
+        [FromQuery] bool? isActive = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        var result = await materialService.GetListAsync(new CatalogQueryRequest(page, pageSize, keyword), cancellationToken);
+        var result = await materialService.GetListAsync(
+            new CatalogQueryRequest(page, pageSize, keyword, isActive), cancellationToken);
 
         return result.IsFailure
             ? ApiResults.Problem(result.Error)
