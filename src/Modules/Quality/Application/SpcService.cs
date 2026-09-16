@@ -10,12 +10,21 @@ namespace QiaoMES.Quality.Application;
 public interface ISpcService
 {
     Task<Result<SpcTrendDto>> GetTrendAsync(SpcTrendRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>列出可做 SPC 的检验项名称（前端下拉选项，避免用户猜名字）。</summary>
+    Task<Result<IReadOnlyList<string>>> GetItemNamesAsync(int take = 100, CancellationToken cancellationToken = default);
 }
 
 public class SpcService(IInspectionRepository repository) : ISpcService
 {
     /// <summary>连续同侧点数阈值（经典判异准则之一）。</summary>
     private const int RunLengthThreshold = 7;
+
+    /// <summary>列出有数值结果的检验项名称。</summary>
+    public async Task<Result<IReadOnlyList<string>>> GetItemNamesAsync(
+        int take = 100,
+        CancellationToken cancellationToken = default)
+        => Result.Success(await repository.GetItemNamesAsync(take, cancellationToken));
 
     public async Task<Result<SpcTrendDto>> GetTrendAsync(
         SpcTrendRequest request,

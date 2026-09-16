@@ -24,6 +24,7 @@
     <ProjectReference Include="..\..\src\BuildingBlocks\Shared\QiaoMES.Shared.csproj" />
     <ProjectReference Include="..\..\src\Modules\Identity\Domain\QiaoMES.Identity.Domain.csproj" />
     <ProjectReference Include="..\..\src\Modules\Production\Domain\QiaoMES.Production.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Assistant\Domain\QiaoMES.Assistant.Domain.csproj" />
   </ItemGroup>
 
 </Project>

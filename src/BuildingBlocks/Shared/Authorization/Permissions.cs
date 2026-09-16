@@ -81,6 +81,16 @@ public static class Permissions
         public const string Manage = "users:manage";
     }
 
+    /// <summary>智能问数(自然语言查数)权限。</summary>
+    public static class Assistant
+    {
+        /// <summary>查看问数状态与语义层(不影响数据)。</summary>
+        public const string Read = "assistant:read";
+
+        /// <summary>发起提问(会调用大模型并执行只读 SQL,有成本)。</summary>
+        public const string Ask = "assistant:ask";
+    }
+
     /// <summary>角色管理权限。</summary>
     public static class Roles
     {

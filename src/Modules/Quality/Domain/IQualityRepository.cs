@@ -95,6 +95,9 @@ public interface IInspectionRepository
         int points,
         CancellationToken cancellationToken = default);
 
+    /// <summary>列出库里有数值结果的检验项名称（SPC 下拉选项，避免用户猜名字）。</summary>
+    Task<IReadOnlyList<string>> GetItemNamesAsync(int take = 100, CancellationToken cancellationToken = default);
+
     Task<Inspection?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
     Task<Inspection?> GetByNumberAsync(string inspectionNumber, CancellationToken cancellationToken = default);

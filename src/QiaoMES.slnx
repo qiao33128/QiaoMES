@@ -58,6 +58,12 @@
     <Project Path="Modules/Equipment/Infrastructure/QiaoMES.Equipment.Infrastructure.csproj" />
     <Project Path="Modules/Equipment/Api/QiaoMES.Equipment.Api.csproj" />
   </Folder>
+  <Folder Name="/Modules/Assistant/">
+    <Project Path="Modules/Assistant/Domain/QiaoMES.Assistant.Domain.csproj" />
+    <Project Path="Modules/Assistant/Application/QiaoMES.Assistant.Application.csproj" />
+    <Project Path="Modules/Assistant/Infrastructure/QiaoMES.Assistant.Infrastructure.csproj" />
+    <Project Path="Modules/Assistant/Api/QiaoMES.Assistant.Api.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="../tests/QiaoMES.Api.Tests/QiaoMES.Api.Tests.csproj" />
     <Project Path="../tests/QiaoMES.Domain.Tests/QiaoMES.Domain.Tests.csproj" />

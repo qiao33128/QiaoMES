@@ -54,6 +54,12 @@ const routes = [
         meta: { title: '报表与班次', permission: 'reporting:read' },
       },
       {
+        path: 'assistant',
+        name: 'assistant',
+        component: () => import('@/views/assistant/AssistantView.vue'),
+        meta: { title: '智能问数', permission: 'assistant:read' },
+      },
+      {
         path: 'serial-numbers',
         name: 'serial-numbers',
         component: () => import('@/views/production/SerialNumberView.vue'),

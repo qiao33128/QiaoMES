@@ -42,6 +42,8 @@ public static class IdentityDbSeeder
                 Permissions.Integration.Manage,
                 Permissions.Users.Read,
                 Permissions.Roles.Read,
+                Permissions.Assistant.Read,
+                Permissions.Assistant.Ask,
             ]
         ),
         ["operator"] =

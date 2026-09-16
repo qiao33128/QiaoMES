@@ -74,6 +74,10 @@ export const defectCodeApi = {
 
 /** SPC */
 export const spcApi = {
+  /** 有数值结果的检验项名称（下拉选项） */
+  items(take = 100) {
+    return http.get('/quality/spc/items', { params: { take } })
+  },
   trend(params) {
     return http.get('/quality/spc/trend', { params })
   },

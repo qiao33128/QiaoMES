@@ -10,8 +10,11 @@
       <el-tab-pane label="来料批次" name="material-lots">
         <MaterialLotPanel v-if="activeTab === 'material-lots'" />
       </el-tab-pane>
-      <el-tab-pane label="不良代码与 SPC" name="defect-codes">
+      <el-tab-pane label="不良代码" name="defect-codes">
         <DefectCodePanel v-if="activeTab === 'defect-codes'" />
+      </el-tab-pane>
+      <el-tab-pane label="SPC 控制图" name="spc">
+        <SpcPanel v-if="activeTab === 'spc'" />
       </el-tab-pane>
     </el-tabs>
   </div>
@@ -23,6 +26,7 @@ import InspectionPanel from './InspectionPanel.vue'
 import NonconformancePanel from './NonconformancePanel.vue'
 import MaterialLotPanel from './MaterialLotPanel.vue'
 import DefectCodePanel from './DefectCodePanel.vue'
+import SpcPanel from './SpcPanel.vue'
 
 const activeTab = ref('inspections')
 </script>

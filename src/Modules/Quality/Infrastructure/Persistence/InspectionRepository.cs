@@ -80,6 +80,18 @@ public class InspectionRepository(QualityDbContext db) : IInspectionRepository
             .OrderByDescending(i => i.CreatedAt)
             .ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<string>> GetItemNamesAsync(
+        int take = 100,
+        CancellationToken cancellationToken = default)
+        => await db.InspectionItems
+            .AsNoTracking()
+            .Where(item => item.NumericValue != null)
+            .Select(item => item.Name)
+            .Distinct()
+            .OrderBy(name => name)
+            .Take(Math.Clamp(take, 1, 500))
+            .ToListAsync(cancellationToken);
+
     public async Task<IReadOnlyList<SpcSample>> GetItemHistoryAsync(
         string itemName,
         DateTime? from,

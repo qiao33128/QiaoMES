@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Application\QiaoMES.Assistant.Application.csproj" />
+    <ProjectReference Include="..\Domain\QiaoMES.Assistant.Domain.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\Infrastructure\QiaoMES.Infrastructure\QiaoMES.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\Shared\QiaoMES.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Npgsql" Version="10.0.0" />
+  </ItemGroup>
+
+</Project>

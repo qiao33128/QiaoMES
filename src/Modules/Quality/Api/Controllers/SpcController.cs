@@ -14,6 +14,14 @@ namespace QiaoMES.Quality.Api.Controllers;
 [Authorize]
 public class SpcController(ISpcService service) : ControllerBase
 {
+    /// <summary>列出有数值结果的检验项名称（前端下拉选项）。</summary>
+    [HttpGet("items")]
+    [HasPermission(Permissions.Quality.Read)]
+    public async Task<IActionResult> GetItems(
+        [FromQuery] int take = 100,
+        CancellationToken cancellationToken = default)
+        => ApiResults.FromResult(await service.GetItemNamesAsync(take, cancellationToken));
+
     /// <summary>取某检验项的趋势数据与判异结论。</summary>
     [HttpGet("trend")]
     [HasPermission(Permissions.Quality.Read)]

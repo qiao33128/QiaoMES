@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using QiaoMES.Assistant.Api;
+using QiaoMES.Assistant.Infrastructure;
 using QiaoMES.Identity.Api;
 using QiaoMES.Identity.Application;
 using QiaoMES.Identity.Infrastructure;
@@ -65,6 +67,11 @@ builder.Services.AddEquipmentModule();
 builder.Services.AddEquipmentInfrastructure();
 builder.Services.AddReportingModule();
 builder.Services.AddReportingInfrastructure();
+builder.Services.AddAssistantModule();
+builder.Services.AddAssistantInfrastructure(builder.Configuration);
+
+// ---------- 演示数据生成器（仅 Development 环境可用，见 DemoDataController） ----------
+builder.Services.AddScoped<QiaoMES.Api.Seed.DemoDataSeeder>();
 
 // ---------- 模块间集成事件订阅（Outbox 异步投递）----------
 // 检验不合格 → 自动发起 Andon 呼叫（设备模块）；质量模块无需反向依赖设备模块
@@ -107,7 +114,8 @@ builder.Services.AddControllers()
     .AddMasterDataControllers()
     .AddQualityControllers()
     .AddEquipmentControllers()
-    .AddReportingControllers();
+    .AddReportingControllers()
+    .AddAssistantControllers();
 
 // ---------- 认证授权（JWT + 权限策略） ----------
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()

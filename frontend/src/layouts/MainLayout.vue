@@ -30,6 +30,10 @@
           <el-icon><TrendCharts /></el-icon>
           <template #title>报表与班次</template>
         </el-menu-item>
+        <el-menu-item v-if="authStore.hasPermission('assistant:read')" index="/assistant">
+          <el-icon><MagicStick /></el-icon>
+          <template #title>智能问数</template>
+        </el-menu-item>
         <el-menu-item v-if="authStore.hasPermission('workorders:read')" index="/display">
           <el-icon><Monitor /></el-icon>
           <template #title>车间大屏</template>
@@ -108,6 +112,7 @@ import {
   Bell,
   Search,
   TrendCharts,
+  MagicStick,
   User,
   UserFilled,
   Fold,
