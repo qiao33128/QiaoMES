@@ -22,6 +22,8 @@
         </div>
         <button class="ghost-btn" @click="toggleFullscreen">{{ isFullscreen ? '退出全屏' : '全屏' }}</button>
         <button class="ghost-btn" @click="refresh">刷新</button>
+        <!-- 大屏是独立全屏路由（不套侧边导航），必须有明确的退出口，否则只能改地址栏 -->
+        <button class="ghost-btn exit-btn" title="返回工单管理（快捷键 Esc）" @click="exitDisplay">退出大屏</button>
       </div>
     </header>
 
@@ -157,8 +159,11 @@
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { dashboardApi } from '@/api/dashboard'
+
+const router = useRouter()
 
 const screens = [
   { key: 'andon', label: '① Andon 呼叫看板' },
@@ -264,18 +269,49 @@ async function toggleFullscreen() {
   }
 }
 
+/** 浏览器原生全屏也支持 Esc 退出，这里同步状态，避免按钮文案与实际不一致 */
+function onFullscreenChange() {
+  isFullscreen.value = Boolean(document.fullscreenElement)
+}
+
+/** 退出大屏：先退出全屏，再回到工单管理 */
+async function exitDisplay() {
+  if (document.fullscreenElement) {
+    await document.exitFullscreen().catch(() => {})
+  }
+  router.push({ name: 'work-orders' })
+}
+
+/**
+ * Esc 退出大屏。
+ * 若当前处于全屏，第一次 Esc 交给浏览器退全屏（不跳路由），再按一次才返回 —— 与用户直觉一致。
+ */
+function onKeydown(event) {
+  if (event.key !== 'Escape') return
+  if (document.fullscreenElement) return
+  exitDisplay()
+}
+
 onMounted(() => {
   refresh()
   tickClock()
   restartRotate()
   clockTimer = setInterval(tickClock, 1000)
   refreshTimer = setInterval(refresh, REFRESH_MS)
+  document.addEventListener('fullscreenchange', onFullscreenChange)
+  window.addEventListener('keydown', onKeydown)
 })
 
 onUnmounted(() => {
   clearInterval(rotateTimer)
   clearInterval(refreshTimer)
   clearInterval(clockTimer)
+  document.removeEventListener('fullscreenchange', onFullscreenChange)
+  window.removeEventListener('keydown', onKeydown)
+  // 离开大屏时如果还在全屏，顺手退掉，否则浏览器会一直停在全屏
+  if (document.fullscreenElement) {
+    document.exitFullscreen().catch(() => {})
+  }
 })
 </script>
 
@@ -368,6 +404,18 @@ onUnmounted(() => {
 
 .ghost-btn:hover {
   border-color: #409eff;
+  color: #fff;
+}
+
+/* 退出口：在深色大屏上要一眼能找到，所以用暖色描边与其它按钮区分 */
+.exit-btn {
+  border-color: rgba(245, 108, 108, 0.6);
+  color: #f8b3b3;
+}
+
+.exit-btn:hover {
+  border-color: #f56c6c;
+  background: rgba(245, 108, 108, 0.14);
   color: #fff;
 }
 
