@@ -18,7 +18,8 @@ namespace QiaoMES.Api.Tests;
 /// 所以这里断言的不只是"能查"，而是<b>同一条执行器连续执行都成功</b>（这正是当初逃过测试的盲区）。
 /// </para>
 /// </summary>
-public class AssistantQueryRunnerTests
+[Collection(ApiCollection.Name)]
+public class AssistantQueryRunnerTests(QiaoMESApiFactory factory)
 {
     [Fact]
     public async Task 连续执行多次查询_都要成功()
@@ -123,8 +124,13 @@ public class AssistantQueryRunnerTests
     }
 
     /// <summary>构造一个与线上配置同构的执行器（连接串取测试环境变量，默认指向本地库）。</summary>
-    private static NpgsqlReadOnlyQueryRunner CreateRunner(int queryTimeoutSeconds = 15)
+    private NpgsqlReadOnlyQueryRunner CreateRunner(int queryTimeoutSeconds = 15)
     {
+        // 🔴 先触发一次宿主创建：CI 上库是空的，而**迁移是在 API 启动时应用**的。
+        // 本类不走 HTTP 管道，如果直接裸连接查业务表，就会遇到「relation does not exist」——
+        // 本地因为有别人跑过迁移所以看不出来，只在 CI 暴露。
+        _ = factory.CreateClient();
+
         var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__DefaultDb")
             ?? "Host=localhost;Port=5432;Database=qiaomes;Username=qiaomes;Password=qiaomes_dev";
 
