@@ -90,15 +90,24 @@
         </div>
       </el-header>
 
-      <el-main class="main">
-        <router-view />
+      <el-main ref="mainEl" class="main">
+        <!--
+          列表 / 检索类页面走 keep-alive：切页面回来，筛选条件、翻页位置、滚动位置都还在；
+          监控类页面（车间大屏、生产看板）与登录/无权限页每次进入都重新挂载，保证看到的是当前数据。
+          名单见下方 cachedViews。
+        -->
+        <router-view v-slot="{ Component }">
+          <keep-alive :include="cachedViews" :max="12">
+            <component :is="Component" />
+          </keep-alive>
+        </router-view>
       </el-main>
     </el-container>
   </el-container>
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import {
@@ -125,6 +134,65 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const collapsed = ref(false)
+
+/**
+ * 需要「切页面回来还在」的页面。
+ * `view` 是**视图文件名** —— SFC 会把文件名推断成组件名（`__name`），而 keep-alive 的 include
+ * 正是按这个名字匹配的（见 vue 的 getComponentName，includeInferred 默认为 true）。
+ * `route` 是路由名，用来记住 / 还回滚动位置（见下方 watch）。
+ *
+ * 为什么是这些:它们都是「点一下查询才出数据」的列表 / 检索页，保留状态纯赚
+ * （筛选条件、翻页、滚动位置都不丢），要看最新数据点一下查询即可。
+ *
+ * 为什么不放全部:
+ * - 车间大屏 DisplayView 自带轮询 / 翻屏定时器与全屏、键盘监听，必须每次进入都重新挂载
+ *   （缓存会让它的定时器在后台一直跑）;
+ * - 生产看板 DashboardView 是「一眼看当前状态」的监控面板，进来就该是新的;
+ * - 登录页 / 无权限页是一次性的，没必要占内存。
+ *
+ * ⚠️ `view` 写错**不会报错**，只会静默不缓存 —— 新增视图想让它保状态，记得加进来。
+ */
+const cachedPages = [
+  { view: 'AssistantView', route: 'assistant' },
+  { view: 'EquipmentView', route: 'equipment' },
+  { view: 'MasterDataView', route: 'master-data' },
+  { view: 'QualityView', route: 'quality' },
+  { view: 'ReportsView', route: 'reports' },
+  { view: 'RoleList', route: 'roles' },
+  { view: 'SerialNumberView', route: 'serial-numbers' },
+  { view: 'TraceabilityView', route: 'traceability' },
+  { view: 'UserList', route: 'users' },
+  { view: 'WorkOrderList', route: 'work-orders' },
+]
+
+const cachedViews = cachedPages.map((page) => page.view)
+const cachedRoutes = new Set(cachedPages.map((page) => page.route))
+
+/**
+ * 还回滚动位置。
+ * `.main` 是滚动容器（overflow-y: auto），而被 keep-alive 缓存的组件会被**移出 DOM**，
+ * 于是离开那一刻它的 scrollHeight 归零、scrollTop 被钳到 0 —— 不主动记一下，回来就跳回顶部了。
+ */
+const mainEl = ref(null)
+const scrollTops = new Map()
+let lastRoute = route.name
+
+watch(
+  () => route.name,
+  (name) => {
+    if (cachedRoutes.has(lastRoute)) {
+      scrollTops.set(lastRoute, mainEl.value?.$el?.scrollTop ?? 0)
+    }
+    lastRoute = name
+
+    nextTick(() => {
+      // 缓存的页面内容还在 DOM 里，高度立刻就是对的，所以 nextTick 就够了
+      if (cachedRoutes.has(name) && mainEl.value?.$el) {
+        mainEl.value.$el.scrollTop = scrollTops.get(name) ?? 0
+      }
+    })
+  },
+)
 
 const activeMenu = computed(() => route.path)
 const currentTitle = computed(() => route.meta.title || 'QiaoMES')
