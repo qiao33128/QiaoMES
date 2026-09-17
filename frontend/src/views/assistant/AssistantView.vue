@@ -67,7 +67,9 @@
         <el-button type="primary" :icon="Promotion" :loading="asking" @click="ask()">
           {{ asking ? '分析中…' : '提问' }}
         </el-button>
-        <el-button v-if="history.length" :icon="Delete" @click="history = []">清空记录</el-button>
+        <el-button v-if="history.length" :icon="Delete" @click="assistantStore.clearHistory()">
+          清空记录
+        </el-button>
       </div>
     </el-card>
 
@@ -107,7 +109,11 @@
         <p v-if="item.answer.thought" class="thought">思路：{{ item.answer.thought }}</p>
 
         <div class="toolbar">
-          <el-radio-group v-model="item.chart" size="small">
+          <el-radio-group
+            :model-value="item.chart"
+            size="small"
+            @update:model-value="(value) => assistantStore.setChart(item, value)"
+          >
             <el-radio-button value="table">表格</el-radio-button>
             <el-radio-button value="bar">柱状图</el-radio-button>
             <el-radio-button value="line">折线图</el-radio-button>
@@ -273,6 +279,7 @@
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
+import { storeToRefs } from 'pinia'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Check,
@@ -285,16 +292,17 @@ import {
   Setting,
 } from '@element-plus/icons-vue'
 import { assistantApi } from '@/api/assistant'
+import { useAssistantStore } from '@/stores/assistant'
 import { useAuthStore } from '@/stores/auth'
 import ResultChart from './ResultChart.vue'
 
 const authStore = useAuthStore()
+const assistantStore = useAssistantStore()
 
-const status = ref(null)
-const question = ref('')
-const asking = ref(false)
-const followUp = ref(false)
-const history = ref([])
+// 🔴 这些状态住在 store 里,不能放组件:本应用没有 keep-alive,路由一切走页面组件就卸载了,
+// 放组件里会连同「正在分析中」的那次请求一起丢掉 —— 请求还在后台飞,却没有组件接手结果。
+// 详见 stores/assistant.js。
+const { status, question, asking, followUp, history } = storeToRefs(assistantStore)
 
 // ---------- 模型配置 ----------
 const configVisible = ref(false)
@@ -506,7 +514,11 @@ function exportCsv(item) {
   URL.revokeObjectURL(url)
 }
 
-onMounted(loadStatus)
+onMounted(() => {
+  // 先恢复上次的记录(切页面 / 刷新后仍在),再刷新能力状态
+  assistantStore.restore()
+  loadStatus()
+})
 </script>
 
 <style scoped>
