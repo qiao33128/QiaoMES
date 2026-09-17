@@ -38,54 +38,76 @@ public sealed class NpgsqlReadOnlyQueryRunner(
 
             await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
-            await using (var setup = connection.CreateCommand())
+            // 🔴 这三条 SET 必须**逐条**执行,不能拼成一个多语句命令。
+            // Npgsql 对多语句命令只处理第一个结果集,连接会停在"命令进行中"状态,
+            // 紧接着的主查询必定抛 `A command is already in progress`。
+            // （线上第一条真实的问数就是这么炸的,而且它看起来像"模型写错了 SQL",极难猜。）
+            var setupTimeout = timeoutSeconds * 1000;
+            async Task SetAsync(string statement)
             {
+                await using var setup = connection.CreateCommand();
                 setup.Transaction = transaction;
-                setup.CommandText =
-                    $"""
-                     SET TRANSACTION READ ONLY;
-                     SET LOCAL statement_timeout = {timeoutSeconds * 1000};
-                     SET LOCAL idle_in_transaction_session_timeout = {timeoutSeconds * 1000};
-                     """;
+                setup.CommandText = statement;
                 await setup.ExecuteNonQueryAsync(cancellationToken);
             }
 
-            await using var command = connection.CreateCommand();
-            command.Transaction = transaction;
-            command.CommandText = sql;
-            command.CommandTimeout = timeoutSeconds;
+            await SetAsync("SET TRANSACTION READ ONLY");
+            await SetAsync($"SET LOCAL statement_timeout = {setupTimeout}");
+            await SetAsync($"SET LOCAL idle_in_transaction_session_timeout = {setupTimeout}");
 
-            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-
-            var columns = new List<QueryColumnDto>(reader.FieldCount);
-            for (var index = 0; index < reader.FieldCount; index++)
-            {
-                columns.Add(new QueryColumnDto(reader.GetName(index), reader.GetDataTypeName(index)));
-            }
-
+            var columns = new List<QueryColumnDto>();
             var rows = new List<IReadOnlyList<object?>>();
             var truncated = false;
 
-            while (await reader.ReadAsync(cancellationToken))
+            // reader 必须在这个作用域内读完并释放,之后才允许 Rollback ——
+            // 否则连接还停在 Fetching,回滚会撞上同一个 "A command is already in progress"
+            await using (var command = connection.CreateCommand())
             {
-                // SQL 已被外包一层 LIMIT (maxRows + 1):能读到第 maxRows+1 行就说明被截断了
-                if (rows.Count >= limit)
-                {
-                    truncated = true;
-                    break;
-                }
+                command.Transaction = transaction;
+                command.CommandText = sql;
+                // 客户端超时给 5 秒余量,让**服务端**的 statement_timeout 先触发:
+                // 服务端取消返回的是干净的 57014「canceling statement due to statement timeout」——
+                // 那是 SQL 层面的错误,模型看得懂(可以加过滤条件重写);
+                // 而客户端先超时只会得到一句 network/stream 错误,会被判成"环境问题"直接放弃修复。
+                command.CommandTimeout = timeoutSeconds + 5;
 
-                var values = new object?[reader.FieldCount];
+                await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
                 for (var index = 0; index < reader.FieldCount; index++)
                 {
-                    values[index] = Normalize(reader.GetValue(index));
+                    columns.Add(new QueryColumnDto(reader.GetName(index), reader.GetDataTypeName(index)));
                 }
 
-                rows.Add(values);
+                while (await reader.ReadAsync(cancellationToken))
+                {
+                    // SQL 已被外包一层 LIMIT (maxRows + 1):能读到第 maxRows+1 行就说明被截断了
+                    if (rows.Count >= limit)
+                    {
+                        truncated = true;
+                        break;
+                    }
+
+                    var values = new object?[reader.FieldCount];
+                    for (var index = 0; index < reader.FieldCount; index++)
+                    {
+                        values[index] = Normalize(reader.GetValue(index));
+                    }
+
+                    rows.Add(values);
+                }
             }
 
-            // 只读事务没有任何写入,直接回滚即可(避免留下长事务)
-            await transaction.RollbackAsync(cancellationToken);
+            // 只读事务没有任何写入,直接回滚即可(避免留下长事务)。
+            // 这里容忍失败:只读事务没有需要撤销的更改,回滚出了问题也不该把已经拿到手的结果丢掉。
+            try
+            {
+                await transaction.RollbackAsync(cancellationToken);
+            }
+            catch (Exception)
+            {
+                // 连接可能已被服务端回收,下次执行会开新连接
+            }
+
             watch.Stop();
 
             return QueryExecutionOutcome.Ok(new QueryResultDto(
@@ -94,6 +116,22 @@ public sealed class NpgsqlReadOnlyQueryRunner(
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
+        }
+        catch (PostgresException exception)
+        {
+            // SQL 本身的问题(列名写错 / 表不存在 / 类型不匹配 / 只读事务拒写)。
+            // 带上 SQLSTATE:模型看到 42P01、42703、25006 这类码,比看一段自然语言更容易改对。
+            watch.Stop();
+            return QueryExecutionOutcome.Failed($"[{exception.SqlState}] {Simplify(exception.MessageText)}");
+        }
+        catch (NpgsqlException exception)
+        {
+            // 连不上 / 连接断了 / 协议错乱 / 超时 —— 执行环境的问题,与 SQL 无关。
+            // 标记为 infrastructure,让上层别再浪费模型调用去"修复"。
+            watch.Stop();
+            return QueryExecutionOutcome.Failed(
+                $"执行环境异常(与 SQL 无关,请检查数据库连接或稍后重试):{Simplify(exception.Message)}",
+                isInfrastructure: true);
         }
         catch (Exception exception)
         {

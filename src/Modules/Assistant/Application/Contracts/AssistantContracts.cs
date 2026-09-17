@@ -22,13 +22,21 @@ public sealed record QueryResultDto(
 }
 
 /// <summary>执行结果(用返回值而不是异常表达"SQL 跑不通",便于驱动自我修复)。</summary>
-public sealed record QueryExecutionOutcome(QueryResultDto? Result, string? Error)
+public sealed record QueryExecutionOutcome(QueryResultDto? Result, string? Error, bool IsInfrastructure = false)
 {
     public bool IsSuccess => Error is null && Result is not null;
 
     public static QueryExecutionOutcome Ok(QueryResultDto result) => new(result, null);
 
-    public static QueryExecutionOutcome Failed(string error) => new(null, error);
+    /// <param name="isInfrastructure">
+    /// true 表示这是**执行环境**的问题（连接断开 / 协议错乱 / 连不上 / 超时），而不是模型把 SQL 写错了。
+    /// <para>
+    /// 这个区分很重要：环境问题把报错回灌给模型重写 SQL 是**没有意义**的 —— 它会写出一样的 SQL、
+    /// 再失败一次，白烧两次模型调用，还让用户以为是"问不出来"。
+    /// </para>
+    /// </param>
+    public static QueryExecutionOutcome Failed(string error, bool isInfrastructure = false)
+        => new(null, error, isInfrastructure);
 }
 
 /// <summary>模型给出的 SQL 与展示建议。</summary>

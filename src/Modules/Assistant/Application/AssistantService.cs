@@ -86,6 +86,17 @@ public sealed class AssistantService(
                 }
 
                 lastFailure = outcome.Error;
+
+                if (outcome.IsInfrastructure)
+                {
+                    // 执行环境的问题（连接/协议/超时），不是 SQL 写错：
+                    // 让模型重写只会写出一样的 SQL 再失败一次，白烧两次调用，还掩盖真实原因。
+                    // 直接把原始错误抛给用户，比自己"猜"有用得多。
+                    logger.LogError("智能问数执行环境异常，终止自我修复:问题={Question} 错误={Failure}",
+                        question, lastFailure);
+
+                    return Failure(question, attempts, lastFailure);
+                }
             }
             else
             {
