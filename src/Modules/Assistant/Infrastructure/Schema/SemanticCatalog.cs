@@ -46,6 +46,7 @@ internal static class SemanticCatalog
         - `reporting.shifts` 是班次定义,`reporting.calendar_days` 是生产日历(`IsWorkingDay = false` 表示非生产日,不计入计划生产时间)。
         - `reporting.daily_shift_metrics` 是"生产日 + 班次 + 产线"的预聚合表,**看板/报表类问题优先查它**(快、口径统一);
           明细类问题才回到 `production.serial_numbers` / `quality.inspections` 等明细表做区间聚合。
+          ⚠️ 它的 `"LineName"` 取值来自**班次定义**(`reporting.shifts."LineName"`),班次没绑产线时是**空字符串** —— 见下面「产线维度」。
         - 明细表的时间列:`production.serial_numbers."CreatedAt"`(投产时刻)、`quality.inspections."CreatedAt"`(检验时刻)、
           `production.production_reports."ReportedAt"`(报工时刻)、`equipment.andon_calls."CalledAt"`(呼叫时刻)。
 
@@ -56,6 +57,19 @@ internal static class SemanticCatalog
         - OEE = 可用率 × 性能 × 良率,其中可用率 =(计划秒 − 停机秒)/ 计划秒,性能 = 理论工时 / 实际工时。
           `reporting.daily_shift_metrics` 里已经存好了 `PlannedHours / TheoreticalSeconds / ActualSeconds / DowntimeSeconds`,优先用它算。
         - 停机时长与次数来自 `equipment.equipment_status_logs`(以 `ToStatus = 2` 的日志为一次停机开始,下一条日志为结束)。
+
+        ### 产线维度(本库最容易踩的坑,请严格按这里写)
+        - 业务上的「产线」就是**工单的工作中心** `production.work_orders."WorkCenter"`(取值如「1 号 SMT 产线」)。
+          要**按产线拆分**,走明细口径:`production.production_reports` r JOIN `production.work_orders` o ON r."WorkOrderId" = o."Id",
+          然后 `GROUP BY o."WorkCenter"`。
+        - ⚠️ **不要**用 `reporting.daily_shift_metrics."LineName"` 做产线分组或产线过滤:
+          这一列的值来自班次定义,班次没有绑定产线时**全部是空字符串**。
+          写成 `"LineName" <> ''`、`"LineName" IS NOT NULL` 或 `GROUP BY "LineName"` 会得到**空表**或**一行空产线** ——
+          这是本库最常见的"问出来没数据"的原因。只有当用户明确问"按班次"时,才用这个表并按 `ShiftCode` 分组。
+        - 按产线算良率(明细口径,分子分母都用报工数):
+          `round(100.0 * sum(r."GoodQuantity") / nullif(sum(r."GoodQuantity") + sum(r."DefectQuantity") + sum(r."ScrapQuantity"), 0), 2)`
+        - 如果某个维度在本库里确实没有数据,请在 explanation 里说明「目前没有可用的某某维度」,
+          不要靠硬凑过滤条件,也不要返回空表了事。
 
         ### 枚举速查(整数含义)
         - 工单状态 `work_orders."Status"`:0 草稿 / 1 已下达 / 2 生产中 / 3 已完成 / 4 已取消。
@@ -427,7 +441,7 @@ internal static class SemanticCatalog
                     ["ProductionDate"] = new("生产日"),
                     ["ShiftCode"] = new("班次编码"),
                     ["ShiftName"] = new("班次名称"),
-                    ["LineName"] = new("产线名称(空 = 全局)"),
+                    ["LineName"] = new("产线名称(来自班次定义;班次未绑产线时为空字符串,不要用它做产线分组或过滤)"),
                     ["PlannedHours"] = new("计划工时(小时)"),
                     ["TotalSn"] = new("投产 SN 数"),
                     ["CompletedSn"] = new("完工 SN 数"),

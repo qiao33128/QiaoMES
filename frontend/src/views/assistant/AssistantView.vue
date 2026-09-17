@@ -138,7 +138,14 @@
             show-overflow-tooltip
           />
           <template #empty>
-            <el-empty description="查询没有返回数据" :image-size="70" />
+            <div class="empty-hint">
+              <el-empty description="查询执行成功，但没匹配到数据" :image-size="70" />
+              <p>
+                SQL 是跑通了的，只是结果为空。常见原因：① 筛选维度的口径不对（例如按产线/班次拆分时，
+                预聚合表的产线列需要班次定义绑定产线）；② 这段时间确实没有数据；③ 演示数据还没灌
+                （在开发机执行 <code>tools/seed-demo.ps1</code>）。
+              </p>
+            </div>
           </template>
         </el-table>
 
@@ -607,6 +614,21 @@ onMounted(loadStatus)
 
 .config-tip {
   margin-bottom: 14px;
+}
+
+.empty-hint p {
+  margin: 0 auto;
+  max-width: 520px;
+  font-size: 12px;
+  line-height: 1.8;
+  color: #909399;
+}
+
+.empty-hint code {
+  padding: 0 4px;
+  border-radius: 3px;
+  background: #f0f2f5;
+  color: #606266;
 }
 
 .field-hint {
