@@ -66,8 +66,15 @@ internal static class SemanticCatalog
           这一列的值来自班次定义,班次没有绑定产线时**全部是空字符串**。
           写成 `"LineName" <> ''`、`"LineName" IS NOT NULL` 或 `GROUP BY "LineName"` 会得到**空表**或**一行空产线** ——
           这是本库最常见的"问出来没数据"的原因。只有当用户明确问"按班次"时,才用这个表并按 `ShiftCode` 分组。
-        - 按产线算良率(明细口径,分子分母都用报工数):
-          `round(100.0 * sum(r."GoodQuantity") / nullif(sum(r."GoodQuantity") + sum(r."DefectQuantity") + sum(r."ScrapQuantity"), 0), 2)`
+        - 良率有**两种口径,不要混用、也不要放在同一张表里比**:
+          · **SN 口径**(与预聚合表一致,回答"整体良率"用这个):完工 SN /(完工 SN + 报废 SN),
+            取 `production.serial_numbers."Status"`(1 = 已完工,2 = 已报废),或直接读 `reporting.daily_shift_metrics`。
+          · **报工口径**(逐工序投入产出,**按产线 / 工序 / 不良拆分时用这个**):
+            良品 /(良品 + 不良 + 报废),即
+            `round(100.0 * sum(r."GoodQuantity") / nullif(sum(r."GoodQuantity") + sum(r."DefectQuantity") + sum(r."ScrapQuantity"), 0), 2)`
+            (r 为 `production.production_reports`)。
+          两者样本与分母都不同(一颗 SN 会经过多道工序报工),数值**不可直接比较**;
+          回答时请在 explanation 里说明这次用的是哪一种口径。
         - 如果某个维度在本库里确实没有数据,请在 explanation 里说明「目前没有可用的某某维度」,
           不要靠硬凑过滤条件,也不要返回空表了事。
 
