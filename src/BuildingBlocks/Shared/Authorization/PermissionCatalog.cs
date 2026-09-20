@@ -41,6 +41,8 @@ public static class PermissionCatalog
         new("智能问数", Permissions.Assistant.Read, "查看问数状态与语义层"),
         new("智能问数", Permissions.Assistant.Ask, "用中文提问查数(消耗大模型额度)"),
         new("智能问数", Permissions.Assistant.Manage, "维护模型配置(地址 / 模型名 / API Key)"),
+        new("改进建议", Permissions.Iteration.Suggest, "对自己可用的功能提修改建议"),
+        new("改进建议", Permissions.Iteration.Manage, "提新增功能建议、审阅迭代计划"),
     ];
 
     /// <summary>按分组归集，便于前端直接渲染。</summary>

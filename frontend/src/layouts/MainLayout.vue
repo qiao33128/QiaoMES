@@ -34,6 +34,10 @@
           <el-icon><MagicStick /></el-icon>
           <template #title>智能问数</template>
         </el-menu-item>
+        <el-menu-item v-if="authStore.hasPermission('iteration:suggest')" index="/iteration">
+          <el-icon><Promotion /></el-icon>
+          <template #title>改进建议</template>
+        </el-menu-item>
         <el-menu-item v-if="authStore.hasPermission('workorders:read')" index="/display">
           <el-icon><Monitor /></el-icon>
           <template #title>车间大屏</template>
@@ -122,6 +126,7 @@ import {
   Search,
   TrendCharts,
   MagicStick,
+  Promotion,
   User,
   UserFilled,
   Fold,
@@ -155,6 +160,7 @@ const collapsed = ref(false)
 const cachedPages = [
   { view: 'AssistantView', route: 'assistant' },
   { view: 'EquipmentView', route: 'equipment' },
+  { view: 'IterationView', route: 'iteration' },
   { view: 'MasterDataView', route: 'master-data' },
   { view: 'QualityView', route: 'quality' },
   { view: 'ReportsView', route: 'reports' },

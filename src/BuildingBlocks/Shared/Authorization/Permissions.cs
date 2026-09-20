@@ -101,6 +101,16 @@ public static class Permissions
         public const string Manage = "roles:manage";
     }
 
+    /// <summary>改进建议与迭代审阅权限。</summary>
+    public static class Iteration
+    {
+        /// <summary>对**自己可用的功能**提修改建议（后端会校验你确实持有该功能的权限）。</summary>
+        public const string Suggest = "iteration:suggest";
+
+        /// <summary>提「新增功能」建议 + 审阅迭代计划（批准 / 否决 / 提意见 / 推进周期）。仅管理员应持有。</summary>
+        public const string Manage = "iteration:manage";
+    }
+
     /// <summary>
     /// 全部权限（由常量反射收集，避免手工维护遗漏）。
     /// </summary>

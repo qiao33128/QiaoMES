@@ -60,6 +60,12 @@ const routes = [
         meta: { title: '智能问数', permission: 'assistant:read' },
       },
       {
+        path: 'iteration',
+        name: 'iteration',
+        component: () => import('@/views/iteration/IterationView.vue'),
+        meta: { title: '改进建议', permission: 'iteration:suggest' },
+      },
+      {
         path: 'serial-numbers',
         name: 'serial-numbers',
         component: () => import('@/views/production/SerialNumberView.vue'),

@@ -44,6 +44,8 @@ public static class IdentityDbSeeder
                 Permissions.Roles.Read,
                 Permissions.Assistant.Read,
                 Permissions.Assistant.Ask,
+                // 主管可以对自己可用的功能提改进建议；审阅计划仍限管理员（iteration:manage 不在内置角色里）
+                Permissions.Iteration.Suggest,
             ]
         ),
         ["operator"] =

@@ -70,6 +70,27 @@ builder.Services.AddReportingInfrastructure();
 builder.Services.AddAssistantModule();
 builder.Services.AddAssistantInfrastructure(builder.Configuration);
 
+// ---------- 改进建议与迭代审阅（转发给 AI 迭代服务，权限闸门留在宿主） ----------
+builder.Services.Configure<QiaoMES.Api.Iteration.IterationOptions>(
+    builder.Configuration.GetSection(QiaoMES.Api.Iteration.IterationOptions.SectionName));
+
+// 客户端直接注入强类型选项（省掉到处 IOptions<T>.Value）。配置在启动时定型：
+// 改地址 / 密钥需要重启，这与宿主其它外部集成的行为一致。
+builder.Services.AddSingleton(provider =>
+    provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<QiaoMES.Api.Iteration.IterationOptions>>().Value);
+builder.Services.AddHttpClient<QiaoMES.Api.Iteration.IterationClient>((provider, client) =>
+{
+    var options = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<QiaoMES.Api.Iteration.IterationOptions>>().Value;
+
+    if (options.IsConfigured)
+    {
+        client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
+    }
+
+    // 超时由客户端内部按配置的 TimeoutSeconds 统一控制，避免两层超时打架
+    client.Timeout = System.Threading.Timeout.InfiniteTimeSpan;
+});
+
 // ---------- 演示数据生成器（仅 Development 环境可用，见 DemoDataController） ----------
 builder.Services.AddScoped<QiaoMES.Api.Seed.DemoDataSeeder>();
 
