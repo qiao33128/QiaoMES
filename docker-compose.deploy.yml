@@ -83,6 +83,10 @@ services:
       Assistant__Llm__Model: ${ASSISTANT_LLM_MODEL:-deepseek-chat}
       # 生产环境强烈建议指向只读账号；留空则复用 DefaultDb（靠 READ ONLY 事务兜底）
       Assistant__ConnectionString: ${ASSISTANT_DB_CONNECTION:-}
+      # 改进建议 / 迭代审阅：指向 AI 迭代服务（同行容器网络，如 http://ai-iteration:8080）。
+      # 留空则该功能显示「迭代服务还没配置」的明确提示，不会报错 —— 功能默认关闭是有意的。
+      Iteration__BaseUrl: ${ITERATION_BASE_URL:-}
+      Iteration__AdminKey: ${ITERATION_ADMIN_KEY:-}
     # 不占用宿主机端口：部署脚本用 `docker inspect` 拿到容器 IP 后直接探 8080（见 deploy/gh_deploy_aliyun.py）
     expose:
       - "8080"
