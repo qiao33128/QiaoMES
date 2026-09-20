@@ -6,19 +6,27 @@
         <span class="brand-dot"></span>
         <span class="brand-name">QiaoMES 车间大屏</span>
       </div>
+      <!-- 当前看板名：与右侧标签高亮共用同一个 activeIndex 推导，两者永远一致 -->
+      <div class="current-screen">
+        <span class="current-label">当前：</span>
+        <span class="current-name">{{ currentScreenName }}</span>
+      </div>
       <div class="clock">
         <span class="clock-time">{{ clock }}</span>
         <span class="clock-date">{{ overview?.dateText || today }}</span>
       </div>
       <div class="header-right">
-        <div class="dots">
-          <span
+        <div class="screens">
+          <button
             v-for="(screen, index) in screens"
             :key="screen.key"
-            class="dot"
+            class="screen-tab"
             :class="{ active: index === activeIndex }"
+            :title="'切换到' + screen.name"
             @click="goTo(index)"
-          ></span>
+          >
+            {{ screen.name }}
+          </button>
         </div>
         <button class="ghost-btn" @click="toggleFullscreen">{{ isFullscreen ? '退出全屏' : '全屏' }}</button>
         <button class="ghost-btn" @click="refresh">刷新</button>
@@ -151,7 +159,7 @@
     </section>
 
     <footer class="display-footer">
-      <span>{{ screens[activeIndex].label }}</span>
+      <span>{{ currentScreenName }}</span>
       <span class="footer-hint">每 10 秒自动轮播 · 数据 30 秒刷新一次</span>
     </footer>
   </div>
@@ -165,10 +173,14 @@ import { dashboardApi } from '@/api/dashboard'
 
 const router = useRouter()
 
+/**
+ * 大屏三个看板。name 同时用于顶栏「当前看板」展示与右侧切换标签（带序号，一眼看出切到哪个看板），
+ * 名称只在前端常量里维护，不额外请求后端。
+ */
 const screens = [
-  { key: 'andon', label: '① Andon 呼叫看板' },
-  { key: 'production', label: '② 产量与良率' },
-  { key: 'quality', label: '③ 质量与设备' },
+  { key: 'andon', name: '① Andon 呼叫看板' },
+  { key: 'production', name: '② 产量与良率' },
+  { key: 'quality', name: '③ 质量与设备' },
 ]
 
 const ROTATE_MS = 10000
@@ -185,6 +197,9 @@ let refreshTimer = null
 let clockTimer = null
 
 const currentScreen = computed(() => screens[activeIndex.value].key)
+
+/** 顶栏「当前看板」文案：与切换标签高亮共用 activeIndex，两者永远一致 */
+const currentScreenName = computed(() => screens[activeIndex.value].name)
 
 const andonTypeMap = { 0: '设备故障', 1: '质量异常', 2: '缺料', 3: '其它' }
 
@@ -330,6 +345,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 16px;
   padding-bottom: 12px;
   border-bottom: 1px solid rgba(64, 158, 255, 0.2);
 }
@@ -374,22 +390,59 @@ onUnmounted(() => {
   gap: 12px;
 }
 
-.dots {
+/* 当前看板展示区：大屏上要一眼可读，字号与底色都比普通按钮更醒目 */
+.current-screen {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  background: rgba(64, 158, 255, 0.12);
+  border: 1px solid rgba(64, 158, 255, 0.4);
+  white-space: nowrap;
+}
+
+.current-label {
+  font-size: 14px;
+  color: #7f9dc4;
+}
+
+.current-name {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #cfe3ff;
+}
+
+/* 切换入口：圆点改成带看板名的标签按钮，当前项高亮（点击切换逻辑沿用原 goTo） */
+.screens {
   display: flex;
   gap: 8px;
 }
 
-.dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.25);
+.screen-tab {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #8fa8c8;
   cursor: pointer;
+  white-space: nowrap;
 }
 
-.dot.active {
-  background: #409eff;
-  box-shadow: 0 0 10px #409eff;
+.screen-tab:hover {
+  border-color: #409eff;
+  color: #fff;
+}
+
+.screen-tab.active {
+  background: rgba(64, 158, 255, 0.22);
+  border-color: #409eff;
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 0 10px rgba(64, 158, 255, 0.5);
 }
 
 .ghost-btn {
