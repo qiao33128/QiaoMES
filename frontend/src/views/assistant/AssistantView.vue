@@ -337,6 +337,7 @@ const examples = [
   '已完工工单的达成率排名',
   '当前有多少条 Andon 呼叫还没响应？',
   '哪几道工序的不良数最高？',
+  '最近 30 天报废 SN 数',
 ]
 
 async function loadStatus() {
