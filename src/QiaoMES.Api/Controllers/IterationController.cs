@@ -65,16 +65,21 @@ public sealed class IterationController(
     }
 
     /// <summary>推进周期：collect 期外的三个动作 —— freeze（冻结收集）/ settle（结算）/ execute（执行已放行条目）。</summary>
-    [HttpPost("cycles/current/{action}")]
+    /// <remarks>
+    /// 🔴 路由参数**不能**叫 <c>action</c>：在 MVC 属性路由里它是保留名，会被当成"动作名"参与动作选择 ——
+    /// 于是 <c>/cycles/current/freeze</c> 被理解成"找一个名为 freeze 的动作"，直接 404（而且日志里只有一行 0ms 的 404，毫无线索）。
+    /// 改叫 <c>verb</c> 就正常了。
+    /// </remarks>
+    [HttpPost("cycles/current/{verb}")]
     [HasPermission(Permissions.Iteration.Manage)]
-    public async Task<IActionResult> Advance(string action, CancellationToken cancellationToken)
+    public async Task<IActionResult> Advance(string verb, CancellationToken cancellationToken)
     {
-        if (action is not ("freeze" or "settle" or "execute"))
+        if (verb is not ("freeze" or "settle" or "execute"))
         {
-            return ApiResults.Problem(Error.Validation("Iteration.UnknownAction", $"不支持的周期动作：{action}"));
+            return ApiResults.Problem(Error.Validation("Iteration.UnknownAction", $"不支持的周期动作：{verb}"));
         }
 
-        return Respond(await client.AdvanceAsync(action, cancellationToken));
+        return Respond(await client.AdvanceAsync(verb, cancellationToken));
     }
 
     /// <summary>
