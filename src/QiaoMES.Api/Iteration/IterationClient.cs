@@ -29,9 +29,9 @@ public sealed record ReviewRequest(bool? Approve, bool? Reject, string? Note, st
 /// 只做**转发 + 密钥代持**，不解释服务的内部结构（前端拿到的就是服务返回的原始结构）——
 /// 这样迭代服务演进（加字段、加状态）时宿主不用跟着改。
 /// </summary>
-public sealed class IterationClient(HttpClient http, IterationOptions options, ILogger<IterationClient> logger)
+public sealed class IterationClient(HttpClient http, IterationSettingsFile settings, ILogger<IterationClient> logger)
 {
-    public bool IsConfigured => options.IsConfigured;
+    public bool IsConfigured => settings.Read().IsConfigured;
 
     public Task<IterationResult> GetCycleAsync(CancellationToken ct)
         => SendAsync(HttpMethod.Get, "/api/cycles/current", null, ct);
@@ -45,28 +45,93 @@ public sealed class IterationClient(HttpClient http, IterationOptions options, I
     public Task<IterationResult> AdvanceAsync(string action, CancellationToken ct)
         => SendAsync(HttpMethod.Post, $"/api/cycles/current/{action}", null, ct);
 
-    private async Task<IterationResult> SendAsync(HttpMethod method, string path, object? body, CancellationToken ct)
+    /// <summary>
+    /// 「测试连接」：调迭代服务的就绪接口（<c>GET /health/ready</c>，**只读无副作用**）。<para>
+    /// 能确认的：地址是否可达、服务端是否配了模型与管理员密钥、宿主这一侧密钥是否为空。<br/>
+    /// 不能确认的：密钥**值**是否与对面一致 —— 迭代服务的管理员接口全是 POST 且都有副作用
+    /// （冻结周期 / 批准条目 / 领任务），拿它们做探活会真的改数据，所以这里不做，
+    /// 如实告诉用户「密钥对不对要用一次真实的管理员操作来验证」，而不是给一个假的"全部正常"。
+    /// </para>
+    /// </summary>
+    public async Task<IterationProbeResult> ProbeAsync(CancellationToken ct)
     {
-        if (!IsConfigured)
+        var current = settings.Read();
+
+        if (!current.IsConfigured)
         {
-            return IterationResult.Failure(
-                "迭代服务还没配置：请在 QiaoMES 的配置里填上 Iteration:BaseUrl（以及需要的 Iteration:AdminKey）。");
+            return new IterationProbeResult(
+                false, "还没填迭代服务地址 —— 先在上面的「迭代服务配置」里填上地址并保存。");
         }
 
-        using var request = new HttpRequestMessage(method, path);
+        var result = await SendAsync(HttpMethod.Get, "/health/ready", null, ct);
+        if (!result.Ok)
+        {
+            return new IterationProbeResult(false, result.Error ?? "迭代服务不可达");
+        }
+
+        var payload = result.Payload;
+        var parts = new List<string> { $"服务可达（{current.BaseUrl}）" };
+
+        if (payload.ValueKind == JsonValueKind.Object)
+        {
+            if (payload.TryGetProperty("model", out var model) && model.ValueKind == JsonValueKind.String)
+            {
+                parts.Add($"模型 {model.GetString()}");
+            }
+
+            if (payload.TryGetProperty("workspaceCount", out var workspaces) && workspaces.TryGetInt32(out var count))
+            {
+                parts.Add($"已注册工作区 {count} 个");
+            }
+        }
+
+        var summary = string.Join("，", parts);
+
+        var adminConfigured = payload.ValueKind == JsonValueKind.Object
+            && payload.TryGetProperty("adminConfigured", out var flag)
+            && flag.ValueKind == JsonValueKind.True;
+
+        if (!adminConfigured)
+        {
+            return new IterationProbeResult(false,
+                $"{summary}。但**迭代服务自己没配管理员密钥**（Admin__ApiKey）—— 所有管理员操作都会被拒绝，请先在迭代服务那边配上。");
+        }
+
+        if (string.IsNullOrWhiteSpace(current.AdminKey))
+        {
+            return new IterationProbeResult(false,
+                $"{summary}。但宿主侧的管理员密钥是空的 —— 审阅 / 批准 / 推进周期会失败（提交修改建议不受影响）。");
+        }
+
+        return new IterationProbeResult(true,
+            $"{summary}，两端的管理员密钥都已配置。密钥值是否一致，需要用一次真实的管理员操作（例如批准一条计划）来验证。");
+    }
+
+    private async Task<IterationResult> SendAsync(HttpMethod method, string path, object? body, CancellationToken ct)
+    {
+        // 每次请求都现读配置：页面上保存完，下一个请求就生效（不需要重启，也不需要缓存失效通知）
+        var current = settings.Read();
+
+        if (!current.IsConfigured)
+        {
+            return IterationResult.Failure(
+                "迭代服务还没配置：请在「改进建议 → 迭代服务配置」里填上地址并保存（也可以走部署配置 Iteration:BaseUrl / Iteration:AdminKey）。");
+        }
+
+        using var request = new HttpRequestMessage(method, Resolve(current.BaseUrl, path));
 
         if (body is not null)
         {
             request.Content = JsonContent.Create(body);
         }
 
-        if (!string.IsNullOrWhiteSpace(options.AdminKey))
+        if (!string.IsNullOrWhiteSpace(current.AdminKey))
         {
-            request.Headers.Add("X-Admin-Key", options.AdminKey);
+            request.Headers.Add("X-Admin-Key", current.AdminKey);
         }
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeout.CancelAfter(TimeSpan.FromSeconds(Math.Clamp(options.TimeoutSeconds, 5, 900)));
+        timeout.CancelAfter(TimeSpan.FromSeconds(Math.Clamp(current.TimeoutSeconds, 5, 900)));
 
         try
         {
@@ -86,7 +151,7 @@ public sealed class IterationClient(HttpClient http, IterationOptions options, I
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
             return IterationResult.Failure(
-                $"迭代服务响应超时（>{options.TimeoutSeconds}s）。提交建议要调大模型做评审与一致性检查，偶尔会久一点，可重试。");
+                $"迭代服务响应超时（>{current.TimeoutSeconds}s）。提交建议要调大模型做评审与一致性检查，偶尔会久一点，可重试。");
         }
         catch (Exception ex)
         {
@@ -94,6 +159,16 @@ public sealed class IterationClient(HttpClient http, IterationOptions options, I
             return IterationResult.Failure($"迭代服务不可达：{ex.Message}");
         }
     }
+
+    /// <summary>
+    /// 每次请求都现算绝对地址。<para>
+    /// 🔴 不能靠 <c>HttpClient.BaseAddress</c>：那个是**启动时定型**的，
+    /// 而地址现在可以在页面上改（保存即生效）—— 用 BaseAddress 会出现「页面提示保存成功，请求却还打向老地址」，
+    /// 是最难查的那类"配置看起来生效了其实没有"。
+    /// </para>
+    /// </summary>
+    private static Uri Resolve(string baseUrl, string path)
+        => new(new Uri(baseUrl.TrimEnd('/') + "/", UriKind.Absolute), path.TrimStart('/'));
 
     /// <summary>优先取 ProblemDetails 的 detail/title，取不到就把原文截断返回，不吞掉真正的原因。</summary>
     private static string ReadDetail(string text)

@@ -71,23 +71,24 @@ builder.Services.AddAssistantModule();
 builder.Services.AddAssistantInfrastructure(builder.Configuration);
 
 // ---------- 改进建议与迭代审阅（转发给 AI 迭代服务，权限闸门留在宿主） ----------
-builder.Services.Configure<QiaoMES.Api.Iteration.IterationOptions>(
-    builder.Configuration.GetSection(QiaoMES.Api.Iteration.IterationOptions.SectionName));
+// 部署配置（appsettings / 环境变量）：只作为**回落值** —— 页面上配过就以配置文件为准。
+var iterationOptions = builder.Configuration
+    .GetSection(QiaoMES.Api.Iteration.IterationOptions.SectionName)
+    .Get<QiaoMES.Api.Iteration.IterationOptions>() ?? new QiaoMES.Api.Iteration.IterationOptions();
+builder.Services.AddSingleton(iterationOptions);
 
-// 客户端直接注入强类型选项（省掉到处 IOptions<T>.Value）。配置在启动时定型：
-// 改地址 / 密钥需要重启，这与宿主其它外部集成的行为一致。
-builder.Services.AddSingleton(provider =>
-    provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<QiaoMES.Api.Iteration.IterationOptions>>().Value);
-builder.Services.AddHttpClient<QiaoMES.Api.Iteration.IterationClient>((provider, client) =>
+// 🔴 配置存在**服务器上的配置文件**里（编排把宿主目录挂到 /app/config），**不进数据库**：
+// 管理员密钥因此与 .env 处在同一档保护（0600、只有属主可读），
+// 也就避开了"数据库备份 / 只读账号顺带把密钥带走"这条路径。
+// 注册成单例：每次请求都直接读盘（不缓存）—— 页面保存完下一个请求就生效，
+// 手工改了/删了文件也立刻反映，不会出现"页面还显示旧值"这种最难解释的现象。
+builder.Services.AddSingleton<QiaoMES.Api.Iteration.IterationSettingsFile>();
+builder.Services.AddScoped<QiaoMES.Api.Iteration.IIterationSettingsStore, QiaoMES.Api.Iteration.IterationSettingsStore>();
+
+builder.Services.AddHttpClient<QiaoMES.Api.Iteration.IterationClient>(client =>
 {
-    var options = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<QiaoMES.Api.Iteration.IterationOptions>>().Value;
-
-    if (options.IsConfigured)
-    {
-        client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
-    }
-
-    // 超时由客户端内部按配置的 TimeoutSeconds 统一控制，避免两层超时打架
+    // 刻意**不设** BaseAddress：地址可以在页面上改，客户端每次请求现算（见 IterationClient.Resolve）。
+    // 超时也由客户端按当前配置统一控制，避免两层超时打架
     client.Timeout = System.Threading.Timeout.InfiniteTimeSpan;
 });
 
@@ -137,6 +138,30 @@ builder.Services.AddControllers()
     .AddEquipmentControllers()
     .AddReportingControllers()
     .AddAssistantControllers();
+
+// ---------- 关键配置体检（fail fast，说清楚缺什么）----------
+// 背景：appsettings.Production.json **刻意不放** Jwt:SecretKey —— 放了等于把默认密钥随镜像发出去
+// （删掉前它是 QiaoMES_Production_Secret_Key_Please_Change_0123456789，任何人都能用它伪造令牌）。
+// 代价是漏配环境变量时会抛 IDX10703 之类看不懂的异常，所以在这里提前拦住并给出人话。
+// 顺带说明：数据库连接串已有明确报错，见 QiaoMES.Infrastructure.DependencyInjection。
+var jwtSecretKey = builder.Configuration["Jwt:SecretKey"];
+if (string.IsNullOrWhiteSpace(jwtSecretKey))
+{
+    throw new InvalidOperationException(
+        "缺少 Jwt:SecretKey —— 请通过环境变量 Jwt__SecretKey 注入一个不少于 32 字符的随机串"
+        + "（docker compose 会从 .env 的 JWT_SECRET_KEY 读取，模板见仓库根 .env.example）。");
+}
+
+// 仍是内置占位值时**不阻断启动**（本地 compose 靠它兜底，一刀切会让 `docker compose up` 直接起不来），
+// 但生产环境必须让人看见：这种密钥等于没有密钥。
+if (!builder.Environment.IsDevelopment()
+    && (jwtSecretKey.StartsWith("QiaoMES_", StringComparison.Ordinal)
+        || jwtSecretKey.Contains("Change_Me", StringComparison.Ordinal)))
+{
+    Console.Error.WriteLine(
+        "⚠️  Jwt:SecretKey 仍是内置默认值 —— 任何人都能用它伪造令牌。"
+        + "请在 .env / 仓库 Secrets 里换成随机串（改完所有人需重新登录；问数页已保存的模型密钥也会失效，需重填）。");
+}
 
 // ---------- 认证授权（JWT + 权限策略） ----------
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
@@ -271,6 +296,7 @@ using (var scope = app.Services.CreateScope())
 
     // 智能问数：把库里保存的模型配置应用到运行时（没有配置行就沿用 appsettings / 环境变量）。
     // 必须在迁移之后 —— 否则首次部署时表还不存在。
+    // （迭代服务不需要这一步：它的配置在**配置文件**里，客户端每次请求现读。）
     await services.GetRequiredService<QiaoMES.Assistant.Application.IAssistantSettingsStore>()
         .ApplyPersistedAsync();
 

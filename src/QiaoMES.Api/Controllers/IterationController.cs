@@ -23,8 +23,40 @@ namespace QiaoMES.Api.Controllers;
 [Authorize]
 public sealed class IterationController(
     IterationClient client,
+    IIterationSettingsStore settings,
     IAuthorizationService authorization) : ControllerBase
 {
+    // ---------------- 迭代服务配置（页面上可配，保存即生效；只有管理员） ----------------
+
+    /// <summary>读取**生效配置**。管理员密钥只回显掩码与「是否已配置」，明文永不出接口。</summary>
+    [HttpGet("config")]
+    [HasPermission(Permissions.Iteration.Manage)]
+    public async Task<IActionResult> GetConfig(CancellationToken cancellationToken)
+        => Ok(await settings.GetAsync(cancellationToken));
+
+    /// <summary>
+    /// 保存配置。未提供的字段保持原值；<c>adminKey</c> 留空表示沿用现有密钥。<para>
+    /// 🔴 与「智能问数 → 模型配置」同一约定：保存后**立即生效**（写回运行时配置），无需重启或重新部署。
+    /// </para>
+    /// </summary>
+    [HttpPut("config")]
+    [HasPermission(Permissions.Iteration.Manage)]
+    public async Task<IActionResult> SaveConfig(
+        [FromBody] IterationSettingsUpdate update,
+        CancellationToken cancellationToken)
+        => ApiResults.FromResult(await settings.SaveAsync(update, cancellationToken));
+
+    /// <summary>
+    /// 测试连接：只读探活（<c>GET /health/ready</c>），确认地址可达、以及两端的管理员密钥是否都已配置。<para>
+    /// 密钥**值**是否一致没法在这里验 —— 迭代服务的管理员接口全是带副作用的 POST，
+    /// 不能拿来做探活，见 <see cref="IterationClient.ProbeAsync"/>。
+    /// </para>
+    /// </summary>
+    [HttpPost("config/test")]
+    [HasPermission(Permissions.Iteration.Manage)]
+    public async Task<IActionResult> TestConfig(CancellationToken cancellationToken)
+        => Ok(await client.ProbeAsync(cancellationToken));
+
     /// <summary>当前迭代周期 + 本期计划条目 + 最近一次一致性检查结论。能提建议的人都能看（透明是这套机制能被信任的前提）。</summary>
     [HttpGet("cycle")]
     [HasPermission(Permissions.Iteration.Suggest)]

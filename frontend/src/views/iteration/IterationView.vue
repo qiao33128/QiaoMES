@@ -8,9 +8,19 @@
             提建议 → AI 评审并写入迭代计划（同时与已有计划做一致性检查）→ 管理员审阅 → 到期自动执行并走 CI/CD。
           </p>
         </div>
-        <el-button :loading="loading" @click="load">刷新</el-button>
+        <span class="row">
+          <el-button v-if="canManage" size="small" @click="openConfig">迭代服务配置</el-button>
+          <el-button :loading="loading" @click="load">刷新</el-button>
+        </span>
       </div>
-      <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" />
+      <el-alert v-if="error" :title="error" type="error" show-icon :closable="false">
+        <template v-if="notConfigured" #default>
+          <span class="sub">
+            这个提示说的是「功能处于关闭状态」，不是故障（迭代服务没配地址时就该这样，页面不会报错）。
+            需要管理员在右上角「迭代服务配置」里填上地址并保存，保存即生效、无需重启。
+          </span>
+        </template>
+      </el-alert>
     </el-card>
 
     <!-- 周期 -->
@@ -129,6 +139,62 @@
       </el-form>
       <el-alert v-if="submitResult" :title="submitResult" :type="submitType" show-icon :closable="false" />
     </el-card>
+
+    <!-- 迭代服务配置（仅管理员）：填完保存即生效，管理员密钥只回掩码 -->
+    <el-dialog v-model="configVisible" title="迭代服务配置" width="640px" @open="loadConfig">
+      <el-alert type="info" :closable="false" show-icon>
+        <template #default>
+          <span class="sub">
+            QiaoMES 只做「入口 + 权限闸门 + 密钥代持」：建议与计划都存在独立的 AI 迭代服务里，
+            管理员密钥由「服务端」代持、不下发浏览器。把地址留空并保存 = 关停「改进建议」功能。
+          </span>
+        </template>
+      </el-alert>
+
+      <el-form label-width="110px" style="margin-top: 14px">
+        <el-form-item label="服务地址">
+          <el-input v-model="config.baseUrl" placeholder="http://ai-iteration:8080" clearable />
+          <div class="sub">
+            同容器网络用服务名（推荐，不必对外暴露端口）；本机 Docker 用 http://host.docker.internal:8091。
+            保存后立即生效，不用重启；下次部署也还在（配置存在服务器上挂载出来的配置文件里）。
+          </div>
+        </el-form-item>
+        <el-form-item label="管理员密钥">
+          <el-input
+            v-model="config.adminKey"
+            type="password"
+            show-password
+            clearable
+            :placeholder="configSnapshot?.adminKeyMasked ? '已配置 ' + configSnapshot.adminKeyMasked + '（留空 = 不改）' : '留空 = 不改动现有密钥'"
+          />
+          <div class="sub">
+            只以掩码回显，明文既不进数据库、也不出接口 —— 它只写在服务器上的
+            <code>config/iteration.json</code>（0600，与 .env 同一档保护）。
+            迭代服务端的 Admin__ApiKey 换值时，这里要同步改。
+          </div>
+        </el-form-item>
+        <el-form-item label="超时（秒）">
+          <el-input-number v-model="config.timeoutSeconds" :min="5" :max="900" :step="10" />
+          <div class="sub">提交建议要调大模型做评审与一致性检查，默认 180 秒。</div>
+        </el-form-item>
+        <el-form-item label="当前来源">
+          <el-tag size="small" :type="configSnapshot?.source === 'file' ? 'success' : 'info'">
+            {{ configSnapshot?.source === 'file' ? '页面上配过（存在服务器的配置文件里）' : '还没在页面上配（沿用部署配置）' }}
+          </el-tag>
+          <span v-if="configSnapshot?.updatedAt" class="sub" style="margin-left: 10px">
+            最后修改 {{ fmt(configSnapshot.updatedAt) }}
+            <template v-if="configSnapshot.updatedBy"> · {{ configSnapshot.updatedBy }}</template>
+          </span>
+        </el-form-item>
+      </el-form>
+
+      <el-alert v-if="configResult" :title="configResult" :type="configResultType" show-icon :closable="false" />
+
+      <template #footer>
+        <el-button :loading="configTesting" @click="testConfig">测试连接</el-button>
+        <el-button type="primary" :loading="configSaving" @click="saveConfig">保存并生效</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -139,6 +205,15 @@ import { iterationApi } from '@/api/iteration'
 import { useAuthStore } from '@/stores/auth'
 
 const authStore = useAuthStore()
+
+// ---------------- 迭代服务配置（需要 iteration:manage） ----------------
+const configVisible = ref(false)
+const configSnapshot = ref(null)
+const configSaving = ref(false)
+const configTesting = ref(false)
+const configResult = ref('')
+const configResultType = ref('success')
+const config = reactive({ baseUrl: '', adminKey: '', timeoutSeconds: 180 })
 
 const loading = ref(false)
 const error = ref('')
@@ -313,6 +388,81 @@ async function advance(action) {
     await load()
   } catch (exception) {
     ElMessage.error(exception?.response?.data?.detail || '操作失败')
+  }
+}
+
+// ---------------- 迭代服务配置（需要 iteration:manage） ----------------
+
+/**
+ * 后端那句「迭代服务还没配置」= 功能处于关闭状态，不是故障。
+ * 页面据此多说一句「去哪开」，否则用户只会以为是坏了。
+ */
+const notConfigured = computed(() => (error.value || '').includes('还没配置'))
+
+async function loadConfig() {
+  configResult.value = ''
+  try {
+    const snapshot = await iterationApi.getConfig()
+    configSnapshot.value = snapshot
+    config.baseUrl = snapshot.baseUrl || ''
+    config.timeoutSeconds = snapshot.timeoutSeconds ?? 180
+    config.adminKey = '' // 密钥永远不回显：留空 = 不改动
+  } catch (exception) {
+    configResultType.value = 'error'
+    configResult.value = exception?.response?.data?.detail || '读取配置失败（需要 iteration:manage 权限）'
+  }
+}
+
+function openConfig() {
+  configResult.value = ''
+  configVisible.value = true
+}
+
+async function saveConfig() {
+  const baseUrl = (config.baseUrl || '').trim()
+  configSaving.value = true
+  configResult.value = ''
+  try {
+    const snapshot = await iterationApi.saveConfig({
+      baseUrl,
+      adminKey: config.adminKey ? config.adminKey.trim() : null,
+      timeoutSeconds: config.timeoutSeconds,
+      // 地址留空 = 显式关停（否则后端会把"未提供"当成"不改动"）
+      clearBaseUrl: !baseUrl,
+    })
+
+    configSnapshot.value = snapshot
+    config.adminKey = ''
+    configResultType.value = 'success'
+    configResult.value = snapshot.configured
+      ? `已保存并生效：${snapshot.baseUrl}（无需重启；点「刷新」即可看到周期与计划）`
+      : '已保存：地址为空，改进建议功能已关停。'
+    ElMessage.success('已保存并生效')
+    await load()
+  } catch (exception) {
+    configResultType.value = 'error'
+    configResult.value = exception?.response?.data?.detail || '保存失败'
+  } finally {
+    configSaving.value = false
+  }
+}
+
+async function testConfig() {
+  if ((config.baseUrl || '').trim() !== (configSnapshot.value?.baseUrl || '')) {
+    ElMessage.warning('检测到未保存的修改：测试连接用的是「已保存」的配置，请先保存再测')
+  }
+
+  configTesting.value = true
+  configResult.value = ''
+  try {
+    const probe = await iterationApi.testConfig()
+    configResultType.value = probe.ok ? 'success' : 'warning'
+    configResult.value = probe.message
+  } catch (exception) {
+    configResultType.value = 'error'
+    configResult.value = exception?.response?.data?.detail || '测试失败'
+  } finally {
+    configTesting.value = false
   }
 }
 

@@ -1,12 +1,16 @@
-using QiaoMES.Assistant.Domain;
+using QiaoMES.Shared.Security;
 
 namespace QiaoMES.Domain.Tests;
 
 /// <summary>
-/// 大模型 API Key 的加密存储测试。
+/// 外部服务凭据的加密存储测试（智能问数的大模型 API Key、迭代服务的管理员密钥共用这一套）。
 /// <para>
 /// 这块必须测：只要有一处写错（nonce/tag 顺序、口令为空、篡改后不报错），
 /// 要么密钥永远解不开、要么"加密"变成摆设。尤其是<b>篡改与换口令必须失败</b>这一条。
+/// </para>
+/// <para>
+/// 📌 类从 <c>QiaoMES.Assistant.Domain</c> 下沉到 <c>QiaoMES.Shared.Security</c> 时，
+/// 这些测试**一行断言都不用改**就能继续跑 —— 也算是对"盐与格式没被动过"的回归验证。
 /// </para>
 /// </summary>
 public class SecretProtectorTests

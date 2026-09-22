@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using QiaoMES.Assistant.Application;
 using QiaoMES.Assistant.Domain;
 using QiaoMES.Shared;
+using QiaoMES.Shared.Security;
 
 namespace QiaoMES.Assistant.Infrastructure.Persistence;
 

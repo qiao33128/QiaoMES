@@ -1,13 +1,15 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace QiaoMES.Assistant.Domain;
+namespace QiaoMES.Shared.Security;
 
 /// <summary>
-/// 大模型 API Key 的静态加密（AES-GCM）。
+/// 外部服务凭据的静态加密（AES-GCM）。
 /// <para>
-/// **为什么要加密**：这把 Key 能直接消耗模型额度，也是外部服务的凭据；
-/// 一旦明文躺在数据库里，任何拿到库备份/快照的人就等于拿到了 Key。
+/// 使用方：智能问数的大模型 <c>ApiKey</c>（它确实要**加密后落库** —— 明文躺在库里，
+/// 任何拿到库备份/快照的人就等于拿到了它）。<br/>
+/// 迭代服务的管理员密钥**不走这里加密**：那份密钥写在服务器上的配置文件里
+/// （<c>0600</c>、与 <c>.env</c> 同一档保护），只借用 <see cref="Mask"/> 做界面回显。
 /// </para>
 /// <para>
 /// **密钥从哪来**：复用 <c>Jwt:SecretKey</c>（它已经稳定存在于服务器 <c>.env</c> 与 GitHub Secrets 里），
@@ -17,8 +19,13 @@ namespace QiaoMES.Assistant.Domain;
 /// 除非再挂一个卷或换 EF 密钥环存储 —— 对一个自用系统来说不值当。
 /// </para>
 /// <para>
-/// ⚠️ 若 <c>Jwt:SecretKey</c> 被更换，已保存的 Key 将无法解密：此时 <see cref="Unprotect"/> 返回 <c>null</c>，
+/// ⚠️ 若 <c>Jwt:SecretKey</c> 被更换，已保存的凭据将无法解密：此时 <see cref="Unprotect"/> 返回 <c>null</c>，
 /// 界面提示「密钥已失效，请重新填写」，不会抛异常。
+/// </para>
+/// <para>
+/// 📌 它原先住在 Assistant 模块里；因为「凭据掩码 / 加密」属于通用能力，
+/// 不该让另一个功能为了用一个小工具去引用某个业务模块，所以下沉到
+/// <c>QiaoMES.Shared</c>（纯工具类，不依赖任何模块）。
 /// </para>
 /// </summary>
 public static class SecretProtector
@@ -26,7 +33,13 @@ public static class SecretProtector
     /// <summary>格式版本前缀，便于以后换算法时平滑迁移。</summary>
     private const string Version = "v1";
 
-    /// <summary>固定盐：同一份 Jwt 密钥在任意实例上派生出一致的密钥，避免多实例解不开。</summary>
+    /// <summary>
+    /// 固定盐：同一份 Jwt 密钥在任意实例上派生出一致的密钥，避免多实例解不开。
+    /// <para>
+    /// 🔴 字符串里保留 <c>Assistant</c> 是**刻意的**：换盐对安全性没有本质提升，
+    /// 却会让所有已保存的密钥立刻解不开（要所有人重填一遍），不划算。
+    /// </para>
+    /// </summary>
     private static readonly byte[] Salt = Encoding.UTF8.GetBytes("QiaoMES.Assistant.SecretProtector.v1");
 
     private const int NonceSize = 12; // AES-GCM 的标准 nonce 长度
@@ -116,7 +129,7 @@ public static class SecretProtector
         if (string.IsNullOrWhiteSpace(passphrase))
         {
             throw new InvalidOperationException(
-                "缺少加密口令（Jwt:SecretKey），无法加密/解密智能问数的 API Key");
+                "缺少加密口令（Jwt:SecretKey），无法加密/解密已保存的外部服务凭据");
         }
 
         return Rfc2898DeriveBytes.Pbkdf2(passphrase, Salt, Iterations, HashAlgorithmName.SHA256, KeySize);

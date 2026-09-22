@@ -43,7 +43,7 @@ public class AssistantSetting : Entity
     public string? LlmModel { get; private set; }
 
     /// <summary>
-    /// 加密后的 API Key（见 <see cref="SecretProtector"/>）。<para>
+    /// 加密后的 API Key（见 <see cref="QiaoMES.Shared.Security.SecretProtector"/>）。<para>
     /// **明文既不落库、也不出接口**：页面只能看到掩码，改配置时留空即表示沿用旧值。
     /// </para>
     /// </summary>

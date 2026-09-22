@@ -4,7 +4,7 @@ import http from './http'
  * 改进建议与迭代审阅。
  *
  * 说明：真正的建议记录、迭代计划、审阅留痕、执行审计都在 **AI 迭代服务**里，
- * QiaoMES 只做「入口 + 权限闸门」—— 所以这里全是转发，前端拿到的就是迭代服务的原始结构。
+ * QiaoMES 只做「入口 + 权限闸门 + 密钥代持」—— 所以这里全是转发，前端拿到的就是迭代服务的原始结构。
  *
  * 提交建议会调大模型做「评审 + 与已有计划交叉对比」，所以超时单独放宽。
  */
@@ -40,5 +40,28 @@ export const iterationApi = {
    */
   advance(action) {
     return http.post(`/iteration/cycles/current/${action}`)
+  },
+
+  // ---------------- 迭代服务配置（需要 iteration:manage；保存即生效，无需重启） ----------------
+
+  /** 读取**生效配置**；管理员密钥只回掩码与「是否已配置」，明文永不出接口 */
+  getConfig() {
+    return http.get('/iteration/config')
+  },
+  /**
+   * 保存配置（保存后立即生效，不需要重启或重新部署）
+   * @param {{baseUrl?:string, adminKey?:string, clearAdminKey?:boolean,
+   *          clearBaseUrl?:boolean, timeoutSeconds?:number}} payload
+   *   · adminKey 留空 = **沿用现有密钥**（只改地址不会把密钥抹掉）
+   *   · clearAdminKey=true = 显式清空密钥
+   *   · clearBaseUrl=true = 显式关停该功能（页面回到「还没配置」状态）
+   *   · 不传的字段 = 不动
+   */
+  saveConfig(payload) {
+    return http.put('/iteration/config', payload)
+  },
+  /** 测试连接：只读探活（确认地址可达 + 两端密钥是否都已配置）；不验证密钥值是否一致 */
+  testConfig() {
+    return http.post('/iteration/config/test', null, { timeout: 30000 })
   },
 }
