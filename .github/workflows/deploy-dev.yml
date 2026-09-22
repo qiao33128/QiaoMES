@@ -1,0 +1,141 @@
+name: Deploy (dev 开发环境)
+
+# ============================================================
+# 分支 = 环境：
+#   push `dev`  → 本工作流：测试 → 构建并推送 `:dev` 镜像 → 部署**开发环境**（:8092，独立库/网络/密钥）
+#   push `main` → Deploy 工作流：同样的链路 → 部署**生产**（:8090）
+#
+# 为什么这么分：AI 自迭代改完代码**只推 `dev`**（AI迭代 侧的 Scheduler:MergeTargetBranch=dev，
+# 代码里还有一道拒绝 main/master 的闸门）。到这里跑完自动测试并部署开发环境之后，
+# **需求方先看真实效果**；确认没问题再人工把 dev 同步到 main，才动生产。
+# 也就是：`dev` = 候选版本 + 自动测试闸门；`main` = 已确认版本。
+# 完整说明见 docs/BRANCHING.md。
+#
+# 复用生产的 Secrets（ALIYUN_* / REGISTRY_*）—— 开发环境不需要额外密钥：
+# JWT 与数据库密码由服务器上的部署脚本自己生成，**刻意不与生产共用**。
+# ============================================================
+
+on:
+  push:
+    branches: [dev]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'tools/**'
+      - '.gitignore'
+  workflow_dispatch:
+
+# 开发环境可以被打断（生产是 cancel-in-progress: false，绝不允许掐断进行中的发布）
+concurrency:
+  group: qiaomes-dev
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ${{ secrets.REGISTRY || 'ccr.ccs.tencentyun.com' }}
+  REGISTRY_NAMESPACE: ${{ secrets.REGISTRY_NAMESPACE || 'qiaoqiao11' }}
+
+jobs:
+  # ---------- 1. 测试（与生产共用同一套检查：ci.yml）----------
+  test:
+    name: 测试
+    uses: ./.github/workflows/ci.yml
+
+  # ---------- 2. 构建并推送 :dev 镜像 ----------
+  publish:
+    name: 构建并推送 :dev 镜像
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+
+      - name: 检查必需的 Secrets
+        env:
+          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+        run: |
+          missing=""
+          [ -n "$REGISTRY_USERNAME" ] || missing="$missing REGISTRY_USERNAME"
+          [ -n "$REGISTRY_PASSWORD" ] || missing="$missing REGISTRY_PASSWORD"
+          if [ -n "$missing" ]; then
+            echo "::error::缺少仓库 Secrets：$missing —— 配置见 docs/CICD.md 第 2.1 / 2.2 节"
+            exit 1
+          fi
+
+      - name: 启用 Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 登录镜像仓
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      # :dev 是开发环境的常驻标签（服务器 .env 就指向它）；git SHA 标签留着排错/回滚
+      - name: 构建并推送 API 镜像（:dev）
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: src/QiaoMES.Api/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/qiaomes-api:dev
+            ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/qiaomes-api:${{ github.sha }}
+          cache-from: type=gha,scope=qiaomes-api
+          cache-to: type=gha,mode=max,scope=qiaomes-api
+
+      - name: 构建并推送 Web 镜像（:dev）
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/qiaomes-web:dev
+            ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/qiaomes-web:${{ github.sha }}
+          cache-from: type=gha,scope=qiaomes-web
+          cache-to: type=gha,mode=max,scope=qiaomes-web
+
+  # ---------- 3. 部署到开发环境（与生产同一台服务器，独立栈）----------
+  deploy:
+    name: 部署到开发环境
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安装阿里云 SDK
+        run: pip install --quiet aliyun-python-sdk-core
+
+      - name: 通过云助手 RunCommand 部署开发环境
+        env:
+          ALIYUN_AK: ${{ secrets.ALIYUN_AK }}
+          ALIYUN_SK: ${{ secrets.ALIYUN_SK }}
+          ALIYUN_INSTANCE_ID: ${{ secrets.ALIYUN_INSTANCE_ID }}
+          ALIYUN_REGION: cn-shanghai
+
+          REGISTRY: ${{ env.REGISTRY }}
+          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+
+          QIAOMES_API_IMAGE: ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/qiaomes-api:dev
+          QIAOMES_WEB_IMAGE: ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/qiaomes-web:dev
+
+          DEV_WEB_PORT: ${{ vars.DEV_WEB_PORT || '8092' }}
+          CORS_ORIGINS: ${{ vars.DEV_CORS_ORIGINS || 'http://139.196.195.44:8092' }}
+          DEMO_DATA_ENABLED: 'true'
+        run: python deploy/gh_deploy_dev.py

@@ -39,3 +39,7 @@ src/QiaoMES.Api/config/
 
 # AI 自迭代服务的本地数据（SQLite 里有建议/计划/审阅留痕，还可能有 git 凭据脚本，绝不入库）
 /ai-iteration/
+
+# Python 编译产物（deploy/*.py 被 CI 直接执行，本地跑一次就会生成；不该入库）
+__pycache__/
+*.pyc

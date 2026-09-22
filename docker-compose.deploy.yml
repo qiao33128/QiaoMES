@@ -164,6 +164,12 @@ services:
       Data__Directory: /data
       Scheduler__Enabled: "true"
       Scheduler__ExecutorEnabled: "false"
+      # 自动合并的目标分支 = **开发环境分支 dev**，不是 main。
+      # 分支-环境对照见 docs/BRANCHING.md：AI 改完只进开发环境（:8092），
+      # 需求方确认后人工把 dev 同步到 main 才动生产。
+      # （AI迭代 代码里还有一道闸门：目标分支是 main/master 时直接抛错，配错也推不上去。）
+      Scheduler__AutoMergeEnabled: "true"
+      Scheduler__MergeTargetBranch: ${ITERATION_MERGE_TARGET:-dev}
       Scheduler__TimeZoneId: ${ITERATION_TZ:-China Standard Time}
       GIT_ASKPASS: /data/git-askpass.sh
     volumes:

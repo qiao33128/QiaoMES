@@ -1,0 +1,101 @@
+# ============================================================
+# QiaoMES · **开发环境**编排（分支 `dev` 专用）
+#
+# 分支 = 环境：`dev` → 这套（8092）；`main` → 生产编排 docker-compose.deploy.yml（8090）。
+# 完整流程见 docs/BRANCHING.md。
+#
+# 与生产编排刻意分家的四件事（每一条都有理由，别图省事合并）：
+#   1. **项目名与容器名独立**：在 /root/qiaomes-dev 下执行 → compose 项目名自动是 qiaomes-dev，
+#      容器名带 -dev。docker 里容器名是全局唯一的，复用生产名字根本起不来。
+#   2. **独立数据库 + 独立网络**：自己的 postgres 卷、自己的 qiaomes-dev-net。
+#      开发环境跑的是 AI 改完、还没人看过的代码 —— 不能连生产库，也不该和生产同网
+#      （同网就意味着它能直接访问生产的 postgres 容器）。
+#   3. **独立 JWT 密钥**：由部署脚本在服务器上生成（见 deploy/gh_deploy_dev.py）。
+#      共用的话，开发环境签发的令牌在生产上是**有效**的，等于把生产的登录口开了一半。
+#   4. **不接自迭代服务**：它和生产不在同一个 docker 网络里（刻意的隔离），
+#      所以「改进建议」页在开发环境会显示「迭代服务还没配置」—— 那是正常状态，不是故障。
+#
+# 内存：这台机器只有 896MB（可用约 260MB），下面三个服务都下了硬限制 ——
+# 超了只会杀开发环境自己，不会把生产拖下水。不用了就 `docker compose -p qiaomes-dev stop`（数据卷保留）。
+# ============================================================
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: qiaomes-dev-postgres
+    restart: unless-stopped
+    mem_limit: 200m
+    environment:
+      POSTGRES_USER: qiaomes
+      # 首次部署时由 deploy/gh_deploy_dev.py 生成并写进 /root/qiaomes-dev/.env；
+      # ⚠️ 卷初始化之后再改它 = API 连不上库（和生产同一条铁律）。
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?开发库密码由部署脚本生成写入 /root/qiaomes-dev/.env}
+      POSTGRES_DB: qiaomes
+      TZ: Asia/Shanghai
+    volumes:
+      - qiaomes_dev_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qiaomes -d qiaomes"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # 比生产更抠：开发环境最多一两个人看，不需要大缓冲池
+    command: >
+      postgres
+      -c shared_buffers=32MB
+      -c max_connections=20
+      -c effective_cache_size=128MB
+      -c work_mem=2MB
+    networks:
+      - qiaomes-dev-net
+
+  api:
+    image: ${QIAOMES_API_IMAGE:-ccr.ccs.tencentyun.com/qiaoqiao11/qiaomes-api:dev}
+    container_name: qiaomes-dev-api
+    restart: unless-stopped
+    mem_limit: 340m
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # 用 Production 而不是 Development：让需求方在开发环境看到的行为与生产一致
+      # （Development 会打开详细异常页、可能触发只该在本地出现的分支）。
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultDb: Host=postgres;Port=5432;Database=qiaomes;Username=qiaomes;Password=${POSTGRES_PASSWORD}
+      Jwt__SecretKey: ${JWT_SECRET_KEY:?开发环境的 JWT 密钥由部署脚本生成（刻意不与生产共用）}
+      Jwt__Issuer: QiaoMES
+      Jwt__Audience: QiaoMES.Api
+      Cors__Origins: ${CORS_ORIGINS:-http://139.196.195.44:8092}
+      # 开发环境默认开演示数据端点，方便需求方看到有内容的界面
+      DemoData__Enabled: ${DEMO_DATA_ENABLED:-true}
+      Iteration__BaseUrl: ${ITERATION_BASE_URL:-}
+      Iteration__AdminKey: ${ITERATION_ADMIN_KEY:-}
+    expose:
+      - "8080"
+    networks:
+      - qiaomes-dev-net
+
+  web:
+    image: ${QIAOMES_WEB_IMAGE:-ccr.ccs.tencentyun.com/qiaoqiao11/qiaomes-web:dev}
+    container_name: qiaomes-dev-web
+    restart: unless-stopped
+    mem_limit: 64m
+    depends_on:
+      - api
+    ports:
+      - "${DEV_WEB_PORT:-8092}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 10s
+    networks:
+      - qiaomes-dev-net
+
+volumes:
+  qiaomes_dev_pgdata:
+
+networks:
+  qiaomes-dev-net:
+    driver: bridge

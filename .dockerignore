@@ -50,3 +50,4 @@ backup/
 config/
 **/config/
 ai-iteration/
+__pycache__/

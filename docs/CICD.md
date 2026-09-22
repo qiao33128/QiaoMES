@@ -204,6 +204,19 @@ docker compose -f docker-compose.deploy.yml up -d --force-recreate api web
 
 四种方式共用同一份 `docker-compose.deploy.yml` 与同一套 `.env` 约定，不会打架。
 
+### 分支 = 环境（`dev` / `main`）
+
+| 分支 | 环境 | 地址 | 工作流 | 编排 | 谁推 |
+|---|---|---|---|---|---|
+| `dev` | 开发环境（候选版本） | `http://139.196.195.44:8092` | `deploy-dev.yml` | `docker-compose.dev.yml`（独立库 / 独立网络 / 独立 JWT 密钥，三个服务都有内存硬限制） | **AI 自迭代自动推**（`Scheduler:MergeTargetBranch=dev`） |
+| `main` | 生产 | `https://mes.qiaoqiaoqiao.me`（:8090） | `deploy.yml` | `docker-compose.deploy.yml` | **只由人工合入**（`git merge --ff-only origin/dev`） |
+
+两条链路都复用 `ci.yml` 的测试，差别只在部署目录、编排文件、镜像 tag（`:dev` vs git SHA）与端口。
+开发环境的 JWT / 数据库密码由部署脚本在服务器上生成，**刻意不与生产共用**（共用 JWT 等于开发环境签发的令牌在生产有效）。
+
+**AI 只推 `dev`**，并且 AI迭代 代码里有一道拒绝 `main` / `master` 的闸门。
+完整流程（谁在什么时候放行、怎么同步到生产、出问题怎么回滚）见 **[BRANCHING.md](BRANCHING.md)**。
+
 > `deploy/one-shot.sh` 与 CI 的差异只在「谁提供配置」：CI 从仓库 Secrets 合并写 `.env`、编排文件由 CI 内联下发；
 > 脚本则**自动补齐** `.env`（缺 `JWT_SECRET_KEY` 就生成随机串；数据库密码只在**全新库**上生成 —— 卷已存在时绝不凭空造新密码）、
 > 建好 external 网络，再 `pull` + `up -d --wait` + 健康检查。它**只 pull / up，不执行任何数据库脚本**。

@@ -224,6 +224,11 @@ pwsh tools/windows-auto-update.ps1 -UnregisterTask
 
 ### 四种方式
 
+> 🌿 **分支 = 环境**：`dev` → 开发环境（`http://139.196.195.44:8092`）；`main` → 生产。
+> AI 自迭代改完代码**只推 `dev`**（代码里有拒绝推 `main` 的闸门），需求方在开发环境看效果确认后，
+> 再人工把 `dev` 同步到 `main` 才动生产。完整流程见 [docs/BRANCHING.md](docs/BRANCHING.md)。
+
+
 ```bash
 # ① 本地构建（开发机自验；改完代码必须带 --build，否则跑的还是旧镜像）
 docker compose up -d --build
