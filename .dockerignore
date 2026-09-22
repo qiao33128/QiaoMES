@@ -49,3 +49,4 @@ backup/
 # 即使 Dockerfile 不 COPY 它，上下文也会被整体打包发给 build daemon
 config/
 **/config/
+ai-iteration/

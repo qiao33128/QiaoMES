@@ -81,9 +81,12 @@ jobs:
           missing=""
           [ -n "$REGISTRY_USERNAME" ] || missing="$missing REGISTRY_USERNAME"
           [ -n "$REGISTRY_PASSWORD" ] || missing="$missing REGISTRY_PASSWORD"
-          # 生产编排把 Jwt__SecretKey 声明为必填（${JWT_SECRET_KEY:?}），漏配会让服务器上的 compose 直接拒绝启动。
-          # 在这里提前拦下来，报错信息比服务器上的 DEPLOY-FAIL-UP 清楚得多。
-          [ -n "$JWT_SECRET_KEY" ] || missing="$missing JWT_SECRET_KEY"
+          # 生产编排里 Jwt__SecretKey 是必填（${JWT_SECRET_KEY:?}），漏配会让服务器上的 compose 在动手前拒绝启动。
+          # 🔴 这里**只警告、不拦截**：服务器 .env 里可能早就有一份（本服务器就是），而 CI 看不到它 ——
+          # 一旦在这里判死，明明能部署也会被挡下来。真正的兜底在服务器侧 compose 的必填校验里。
+          if [ -z "$JWT_SECRET_KEY" ]; then
+            echo "::warning::未提供仓库 Secret JWT_SECRET_KEY —— 若服务器 .env 里已有值则无妨；全新机器会在 compose 阶段被拒（DEPLOY-FAIL-UP）。"
+          fi
           if [ -n "$missing" ]; then
             echo "::error::缺少仓库 Secrets：$missing —— 请先按 docs/CICD.md 第 2.1 / 2.2 节配置后再重新运行"
             {
@@ -186,6 +189,16 @@ jobs:
           # 改进建议 / AI 迭代服务（留空 = 该功能关闭，页面给明确提示，见 docs/ITERATION.md）
           ITERATION_BASE_URL: ${{ vars.ITERATION_BASE_URL }}
           ITERATION_ADMIN_KEY: ${{ secrets.ITERATION_ADMIN_KEY }}
+
+          # AI 自迭代服务的容器本体（已收编进 docker-compose.deploy.yml 的 ai-iteration 服务）。
+          # 🔴 镜像由 AI迭代 仓自己构建并推送（`ccr.../qiaoqiao11/ai-iteration:latest`），QiaoMES 的 CI 不构建它。
+          # 下面这些键**只在仓库里显式配了时才下发**（空值不下发 → 保留服务器 .env 里已有的值，编排里也有默认值）。
+          # 尤其 ITERATION_LLM_API_KEY：首次上线由部署脚本从旧的独立栈自动带入 .env 里，
+          # 别在这里顺手写成 ASSISTANT_LLM_API_KEY —— 万一两把 key 不是同一个账号，会把能用的那把它换掉。
+          AI_ITERATION_IMAGE: ${{ vars.AI_ITERATION_IMAGE }}
+          ITERATION_LLM_BASE_URL: ${{ vars.ITERATION_LLM_BASE_URL }}
+          ITERATION_LLM_MODEL: ${{ vars.ITERATION_LLM_MODEL }}
+          ITERATION_LLM_API_KEY: ${{ secrets.ITERATION_LLM_API_KEY }}
 
           RAW_COMPOSE_URL: https://raw.githubusercontent.com/${{ github.repository }}/${{ github.event.repository.default_branch }}/docker-compose.deploy.yml
           PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL || 'https://mes.qiaoqiaoqiao.me' }}

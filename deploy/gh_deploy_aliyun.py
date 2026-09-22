@@ -36,9 +36,19 @@ JWT_SECRET_KEY / POSTGRES_PASSWORD / WEB_PORT / CORS_ORIGINS / GATEWAY_NETWORK
 DEMO_DATA_ENABLED
 ASSISTANT_ENABLED / ASSISTANT_LLM_BASE_URL / ASSISTANT_LLM_API_KEY / ASSISTANT_LLM_MODEL / ASSISTANT_DB_CONNECTION
 ITERATION_BASE_URL / ITERATION_ADMIN_KEY
+ITERATION_LLM_BASE_URL / ITERATION_LLM_API_KEY / ITERATION_LLM_MODEL / AI_ITERATION_IMAGE
 RAW_COMPOSE_URL / PUBLIC_BASE_URL / SMOKE_USER / SMOKE_PASSWORD
 
 完整变量清单与模板见仓库根目录 `.env.example`；迭代服务配置见 docs/ITERATION.md。
+
+## AI 自迭代服务（ai-iteration）也已收编进本脚本
+
+编排文件里多了一个 `ai-iteration` 服务（与 api/web 同一次 pull & up），
+所以线上不再需要单独维护 `/root/ai-iteration/docker-compose.yml` 那个项目：
+第 5 步会先把旧栈 `down` 掉、把它的 SQLite 数据（含 -wal/-shm）搬到 `$DIR/ai-iteration/data`
+（搬前先 tar 备份，搬完校验 `aiiteration.db` 是否存在，失败即中止，不会带着空库上线），
+再把旧编排改名为 `docker-compose.yml.migrated` 防止它又被当成第二个栈拉起来。
+第 7 步会额外探一次它的 `/health/ready`（镜像里有 curl，可以在容器内探）。
 """
 
 import base64
@@ -62,7 +72,9 @@ cd "$DIR" || { echo DEPLOY-FAIL-CD; exit 1; }
 echo "=== [1/7] 记录当前镜像（回滚参考）"
 docker inspect qiaomes-api --format '{{.Config.Image}}' > "$DIR/.last_api_image" 2>/dev/null || true
 docker inspect qiaomes-web --format '{{.Config.Image}}' > "$DIR/.last_web_image" 2>/dev/null || true
+docker inspect ai-iteration --format '{{.Config.Image}}' > "$DIR/.last_iteration_image" 2>/dev/null || true
 cat "$DIR/.last_api_image" 2>/dev/null || true
+cat "$DIR/.last_iteration_image" 2>/dev/null || true
 
 echo "=== [2/7] 合并写入 .env（只覆盖本次提供的键）+ 准备配置目录"
 NEW=/tmp/qiaomes.env.new
@@ -122,9 +134,47 @@ else
   echo "（未提供镜像仓用户名/密码，跳过 login；公开镜像或服务器已登录过可忽略）"
 fi
 
-echo "=== [5/7] 拉取镜像并重建 api / web"
-docker compose -f "$COMPOSE" pull api web || { echo DEPLOY-FAIL-PULL; exit 1; }
-docker compose -f "$COMPOSE" up -d --force-recreate api web || { echo DEPLOY-FAIL-UP; exit 1; }
+echo "=== [5/7] 收编旧的独立 ai-iteration 栈（如有）+ 拉取镜像 + 重建"
+
+# 为什么要有这段：ai-iteration 过去是一个**独立的 compose 项目**（/root/ai-iteration/docker-compose.yml），
+# 现在已经写进 QiaoMES 的编排里。收编必须按这个顺序做，否则会踩两个坑：
+#   ① 容器名同为 ai-iteration → 旧的还在跑，`up -d` 会直接失败（name already in use）；
+#   ② 先停再拷数据 —— SQLite 在写入时拷会拿到不完整的库（-wal 里还有未 checkpoint 的数据）。
+OLD_DIR=/root/ai-iteration
+if [ -f "$OLD_DIR/docker-compose.yml" ]; then
+  echo "--- 发现旧的独立 ai-iteration 栈，开始收编"
+  docker compose -f "$OLD_DIR/docker-compose.yml" -p ai-iteration down 2>/dev/null || true
+  if [ -d "$OLD_DIR/data" ] && [ ! -d "$DIR/ai-iteration/data" ]; then
+    mkdir -p "$DIR/ai-iteration"
+    # 先留一份 tar 备份（只做一次），再拷过去；原目录一律保留不动，便于回退排查。
+    tar -czf "$DIR/ai-iteration-data-backup-$(date +%Y%m%d%H%M%S).tgz" -C "$OLD_DIR" data 2>/dev/null || true
+    cp -a "$OLD_DIR/data" "$DIR/ai-iteration/data"
+    if [ ! -f "$DIR/ai-iteration/data/aiiteration.db" ]; then
+      echo "（数据搬迁失败：目标目录里没有 aiiteration.db）"
+      echo DEPLOY-FAIL-ITERATION-DATA
+      exit 1
+    fi
+    echo "--- 迭代数据已搬到 $DIR/ai-iteration/data（原目录保留 + 另存 tar 备份）"
+  fi
+  mkdir -p "$DIR/ai-iteration/workspaces" "$DIR/ai-iteration/nuget"
+  # 模型密钥也带过来（只显示键名，不打印值）：否则新容器拿不到 Key，AI 评审会一直报「模型未配置」。
+  if ! grep -q '^ITERATION_LLM_API_KEY=' "$ENVF"; then
+    old_key=$(grep -E '^[[:space:]]*Llm__ApiKey:' "$OLD_DIR/docker-compose.yml" | head -1 | sed -E 's/.*Llm__ApiKey:[[:space:]]*//; s/[[:space:]]*$//')
+    if [ -n "$old_key" ]; then
+      printf 'ITERATION_LLM_API_KEY=%s\n' "$old_key" >> "$ENVF"
+      chmod 600 "$ENVF"
+      echo "--- 已把旧栈的模型密钥带入 .env：ITERATION_LLM_API_KEY=<hidden>"
+    fi
+  fi
+  # 改名而不是删除：留着可查，但不会再被误当成第二个栈拉起来。
+  mv -f "$OLD_DIR/docker-compose.yml" "$OLD_DIR/docker-compose.yml.migrated"
+  echo "--- 旧编排已改名 docker-compose.yml.migrated，收编完成"
+else
+  echo "--- 没有旧栈需要收编"
+fi
+
+docker compose -f "$COMPOSE" pull api web ai-iteration || { echo DEPLOY-FAIL-PULL; exit 1; }
+docker compose -f "$COMPOSE" up -d --force-recreate api web ai-iteration || { echo DEPLOY-FAIL-UP; exit 1; }
 
 echo "=== [6/7] 兜底挂网关网络（compose 已声明 external，这里再幂等补一次）"
 docker network connect "__GATEWAY_NETWORK__" qiaomes-web 2>/dev/null || true
@@ -160,8 +210,24 @@ if [ "$web_code" != "200" ]; then
 fi
 echo "前端端口 ${WEB_PORT} 探活通过"
 
+# ai-iteration（收编进来的自迭代服务）：这个镜像基于 sdk，容器内有 curl，可以直接进去探。
+# /health/ready 会查一次 SQLite —— 所以它同时是「数据卷挂好、迁移跑完」的探针：
+# 数据没搬过来 / 没挂上时，这里会失败，而不是等到有人在页面上提建议才发现。
+it_code=000
+for i in $(seq 1 20); do
+  it_code=$(docker exec ai-iteration curl -s -o /dev/null -w '%{http_code}' -m 5 http://127.0.0.1:8080/health/ready 2>/dev/null || echo 000)
+  [ "$it_code" = "200" ] && { echo "ai-iteration 健康检查通过（第 ${i} 次）"; break; }
+  sleep 3
+done
+if [ "$it_code" != "200" ]; then
+  echo "--- ai-iteration 日志尾部 ---"
+  docker logs --tail 40 ai-iteration 2>&1 | tail -40
+  echo "DEPLOY-FAIL-ITERATION-${it_code}"
+  exit 1
+fi
+
 docker image prune -f --filter "until=168h" >/dev/null 2>&1 || true
-docker ps --filter name=qiaomes-
+docker ps --filter name=qiaomes- --filter name=ai-iteration
 echo DEPLOY-DONE-200
 """
 
@@ -205,6 +271,10 @@ ENV_KEYS = [
     "ASSISTANT_DB_CONNECTION",
     "ITERATION_BASE_URL",
     "ITERATION_ADMIN_KEY",
+    "ITERATION_LLM_BASE_URL",
+    "ITERATION_LLM_API_KEY",
+    "ITERATION_LLM_MODEL",
+    "AI_ITERATION_IMAGE",
 ]
 
 _client = None

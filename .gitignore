@@ -36,3 +36,6 @@ docker-up.log
 # 两处都要忽略：容器里是 <仓库>/config（编排挂载），`dotnet run` 时是 <项目目录>/config
 /config/
 src/QiaoMES.Api/config/
+
+# AI 自迭代服务的本地数据（SQLite 里有建议/计划/审阅留痕，还可能有 git 凭据脚本，绝不入库）
+/ai-iteration/

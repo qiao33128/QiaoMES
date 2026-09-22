@@ -126,6 +126,11 @@ docker compose up -d --build          # 改完代码必须带 --build，否则�
 
 ### 迭代服务配置怎么填
 
+> 📌 **线上不需要单独部署自迭代服务**：容器 `ai-iteration` 已经写进 `docker-compose.deploy.yml`，
+> 一次部署跟着 api/web 一起 pull & up（以前那个 `/root/ai-iteration/` 独立 compose 项目会被首次部署自动收编，
+> 数据一并搬过来）。详见 [docs/ITERATION.md](docs/ITERATION.md)。
+
+
 「改进建议」页报 **「迭代服务还没配置：请在「改进建议 → 迭代服务配置」里填上地址并保存」**
 = 当前生效的 `Iteration:BaseUrl` 是空的，也就是这个功能**关着**（不是故障）。
 

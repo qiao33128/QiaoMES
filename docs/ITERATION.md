@@ -59,6 +59,28 @@ docs/ITERATION.md                                     # 本文
 > 这就是排查"我明明改了配置却没反应"的第一现场）。
 > 想把控制权交还给部署配置：删掉那个文件 —— `rm /root/qiaomes/config/iteration.json`，**立即生效，不用重启**。
 
+### 线上是怎么跑的（自迭代服务已收编进 QiaoMES 的编排）
+
+- 容器 `ai-iteration` 与 `qiaomes-postgres` / `qiaomes-api` / `qiaomes-web` 由**同一份
+  `docker-compose.deploy.yml`** 管理，一次部署一起起来 —— 服务器上**不再需要**单独维护第二个 compose 项目。
+  过去那个 `/root/ai-iteration/docker-compose.yml` 会被首次部署自动收编（见下）。
+- 🔴 线上**只跑规划侧**（提建议 / AI 评审 / 迭代计划 / 周期冻结结算），**不跑执行**：
+  执行（真改代码、跑测试、合并）要吃 .NET SDK + Node + git + 源码卷，那台 1GB 的机器扛不住。
+  开关是 `Scheduler__ExecutorEnabled=false` —— ⚠️ 配置键是 **`Scheduler:`**，
+  不是 AI迭代 代码注释里写的 `Iteration:`；写成后者不生效，会静默继续在这台机器上跑构建。
+  真正干活的是你开发机上的 `AiIteration.Worker`（它通过 `POST /api/tasks/lease` 租任务，
+  需要能访问服务器的 8091 端口，并用同一个 AdminKey）。
+- **数据在宿主的 `ai-iteration/data/`**：`aiiteration.db`（SQLite，含 `-wal` / `-shm`）+ `git-askpass.sh`。
+  以前它在 `/root/ai-iteration/data`，首次部署会搬进 `/root/qiaomes/ai-iteration/data`：
+  先 `down` 旧栈（SQLite 在写入时拷会拿到不完整的库）→ 打一个 tar 备份 → `cp -a` →
+  **校验 `aiiteration.db` 存在才继续**（否则中止部署，不会带着空库上线）→ 旧编排改名 `.migrated`。
+  原目录一律保留，回退排查用。
+- 模型密钥在服务器 `.env` 的 `ITERATION_LLM_API_KEY`（首次由部署脚本从旧栈自动带入，不打印明文）。
+- ⚠️ 它的 `8091` 端口目前**对公网开放**（为了让开发机上的 Worker 能租任务，因为 SSH 被公司网络阻断）。
+  而它的接口里有几个**不带鉴权**（`POST /api/tasks`、`POST /api/workspaces`），
+  公网可达就意味着任何人都能建任务 —— 不需要 Worker 时，把 `AI_ITERATION_PORT` 改成
+  `127.0.0.1:8091:8080`，或直接把 compose 里那个 `ports` 段删掉。
+
 ### 部署配置（下面四选一：无人值守、或者没有管理员能登录页面时）
 
 「在 QiaoMES 的配置里填」指的也就是这四种。

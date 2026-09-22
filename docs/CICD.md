@@ -88,6 +88,7 @@ GitHub Actions
 | `POSTGRES_PASSWORD` | ⚠️ 建议**不配** | 部署脚本只在 CI 提供了值时才覆盖服务器 `.env`。**一旦配错会让 API 连不上已初始化的数据库卷** |
 | `SMOKE_USER` / `SMOKE_PASSWORD` | 可空 | 冒烟测试账号，默认 `admin` / `Admin123!` |
 | `ITERATION_ADMIN_KEY` | 可空 | AI 迭代服务的管理员密钥，必须与服务端 `Admin__ApiKey` 一致。不配则「改进建议」功能关闭（页面给明确提示，不报错） |
+| `ITERATION_LLM_API_KEY` | 可空 | **AI 自迭代服务本体**（容器 `ai-iteration`）用的模型密钥，与问数的 `ASSISTANT_LLM_API_KEY` 是两个独立的键。首次上线由部署脚本从旧的独立栈自动带进服务器 `.env`；⚠️ 别顺手把它写成问数的 key —— 两把 key 若不是同一个账号，会把本来能用的那把换掉（键名不同是有意的） |
 
 🔴 **`POSTGRES_PASSWORD` 为什么危险**：PostgreSQL 的密码在**数据卷首次初始化时**就写死了。
 如果 CI 把一个新值推上去，API 会用新密码连一个只认旧密码的库 → 连接失败、容器起不来。
@@ -104,6 +105,8 @@ GitHub Actions
 | `ASSISTANT_LLM_MODEL` | `deepseek-chat` | |
 | `DEMO_DATA_ENABLED` | `false` | 设为 `true` 才能在服务器上用 `tools/seed-demo.ps1` 灌演示数据 |
 | `ITERATION_BASE_URL` | 空（= 功能关闭） | AI 迭代服务地址。与宿主同容器网络时填服务名，如 `http://ai-iteration:8080`；**详细说明见 [ITERATION.md](ITERATION.md)** |
+| `AI_ITERATION_IMAGE` | `ccr.../qiaoqiao11/ai-iteration:latest` | 自迭代服务**本体**的镜像（已收编进 `docker-compose.deploy.yml` 的 `ai-iteration` 服务）。**由「AI迭代」仓自己构建推送**，QiaoMES 的 CI 不构建它 |
+| `ITERATION_LLM_BASE_URL` / `ITERATION_LLM_MODEL` | `https://api.deepseek.com/v1` / `deepseek-flash` | 自迭代服务自己的大模型端点与模型名（与问数的 `ASSISTANT_LLM_*` 相互独立） |
 
 > Variables 不是密钥，改完直接生效，不用动 workflow。
 

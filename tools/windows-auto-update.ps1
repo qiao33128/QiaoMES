@@ -344,6 +344,21 @@ try {
         Write-Log '确实要换：把 .env 里的 JWT_SECRET_KEY 改成一个 ≥32 字符的随机串，再重跑本脚本。' 'WARN'
     }
 
+    # 自迭代服务（容器 ai-iteration）与 QiaoMES 共用这个 AdminKey：它空着时，迭代服务会拒绝一切管理员操作（503），
+    # 「改进建议」页就会报 401/403。这个值只在本机这两个容器之间用，生成随机串即可（与本机之外的那份互不相干）。
+    if (-not (Get-EnvValue $lines 'ITERATION_ADMIN_KEY')) {
+        Set-EnvValue -Path $envPath -Key 'ITERATION_ADMIN_KEY' -Value (New-RandomHex 16) -Lines $lines
+        $lines = Get-EnvLines $envPath
+        Write-Log '已生成 ITERATION_ADMIN_KEY（QiaoMES 与自迭代服务共用同一个值）'
+    }
+
+    # 地址就填服务名 —— 两者在同一个 compose 网络里，容器名可直接解析。
+    if (-not (Get-EnvValue $lines 'ITERATION_BASE_URL')) {
+        Set-EnvValue -Path $envPath -Key 'ITERATION_BASE_URL' -Value 'http://ai-iteration:8080' -Lines $lines
+        $lines = Get-EnvLines $envPath
+        Write-Log '已填 ITERATION_BASE_URL=http://ai-iteration:8080（本机一键启动会把自迭代服务一起带起来）'
+    }
+
     # 🔴 本机必须把数据库端口绑到 0.0.0.0（见文件头的平台说明）：Docker Desktop 不代理 127.0.0.1 的映射，
     # 否则从 Windows 宿主 `dotnet run` / 数据库工具连 localhost:5432 会直接被拒。
     # 幂等：已有值就不动；老的 .env（这次改动之前建的）缺这一项，这里自动补上。
@@ -368,6 +383,17 @@ try {
         else {
             New-Item -ItemType Directory -Path $configDir -Force | Out-Null
             Write-Log "已创建 $configDir（迭代服务配置落盘在这里；已在 .gitignore 里排除）" 'OK'
+        }
+    }
+
+    # 自迭代服务的 SQLite 目录。Docker 也会自动建，但那样属主是 root —— 容器里的非 root 用户可能写不进去，
+    # 所以这里用你的身份先建好（和上面 config 同一个道理）。
+    $iterDataDir = Join-Path $RepoDir 'ai-iteration\data'
+    if (-not (Test-Path $iterDataDir)) {
+        if ($DryRun) { Write-Log "DRY-RUN: 会创建 $iterDataDir" }
+        else {
+            New-Item -ItemType Directory -Path $iterDataDir -Force | Out-Null
+            Write-Log "已创建 $iterDataDir（自迭代服务的 SQLite 落盘在这里）" 'OK'
         }
     }
 

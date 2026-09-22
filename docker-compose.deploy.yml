@@ -139,6 +139,57 @@ services:
       # 该网络由看板站 compose 创建，故声明为 external。
       - gateway
 
+  # ---------- AI 自迭代服务（只跑规划侧：提建议 / AI 评审 / 迭代计划 / 周期冻结结算）----------
+  # 它原先是一个**独立的 compose 项目**（/root/ai-iteration/docker-compose.yml）。现在收编到这里：
+  # 一次部署就把「改进建议」这条链一起带起来，服务器上不再需要单独维护第二个项目。
+  # 部署脚本会把旧栈停掉、把 SQLite 数据搬进来（见 deploy/gh_deploy_aliyun.py 第 5 步）。
+  #
+  # 🔴 只跑规划侧，**不跑执行**：执行（真改代码 / 跑测试 / 合并）要吃 .NET SDK + Node + git + 源码卷，
+  #    这台 1GB 机器扛不住 —— 所以 Scheduler__ExecutorEnabled=false，任务留给开发机上的
+  #    AiIteration.Worker 通过 POST /api/tasks/lease 租用执行（见 AI迭代 仓 src/AiIteration.Worker）。
+  # ⚠️ 配置键是 `Scheduler:ExecutorEnabled`，**不是** `Iteration:ExecutorEnabled` ——
+  #    AI迭代 的代码注释写的是后者，用后者不生效、会静默继续在这台机器上跑构建。
+  ai-iteration:
+    image: ${AI_ITERATION_IMAGE:-ccr.ccs.tencentyun.com/qiaoqiao11/ai-iteration:latest}
+    container_name: ai-iteration
+    restart: unless-stopped
+    mem_limit: 512m
+    environment:
+      # 必须与上面 api 的 Iteration__AdminKey 同值 —— 两边都取自同一个 .env 变量，天然一致。
+      # 留空时它拒绝一切管理员操作（503）：页面会显示 401/403，而不是悄悄不鉴权。
+      Admin__ApiKey: ${ITERATION_ADMIN_KEY:-}
+      Llm__BaseUrl: ${ITERATION_LLM_BASE_URL:-https://api.deepseek.com/v1}
+      Llm__ApiKey: ${ITERATION_LLM_API_KEY:-}
+      Llm__Model: ${ITERATION_LLM_MODEL:-deepseek-flash}
+      Data__Directory: /data
+      Scheduler__Enabled: "true"
+      Scheduler__ExecutorEnabled: "false"
+      Scheduler__TimeZoneId: ${ITERATION_TZ:-China Standard Time}
+      GIT_ASKPASS: /data/git-askpass.sh
+    volumes:
+      # SQLite 库（aiiteration.db，含 -wal/-shm）与 git-askpass.sh 都在这里，**必须持久化**。
+      - ${AI_ITERATION_DATA_DIR:-./ai-iteration/data}:/data
+      # 下面两个只有「在本机执行」时才用得到；保留挂载只是为了万一以后真在这台机器上开执行（不建议）
+      - ${AI_ITERATION_WORKSPACES_DIR:-./ai-iteration/workspaces}:/workspaces
+      - ${AI_ITERATION_NUGET_DIR:-./ai-iteration/nuget}:/root/.nuget
+    # 这个镜像基于 sdk（里面装了 curl），所以能在容器内直接探活；/health/ready 会查一次数据库，
+    # 因此它同时是「SQLite 已就绪」的探针（库没迁好 / 没挂上会在这里露出来）。
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/health/ready >/dev/null || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    ports:
+      # 🔴 保留对外映射，是为了让开发机上的 Worker 能租任务（SSH 被公司网络阻断，只能走公网）。
+      # 代价必须说清：这个服务的接口里有几个是**不带鉴权**的（POST /api/tasks、POST /api/workspaces），
+      # 暴露在公网等于任何人都能建任务/注册工作区。不想暴露就改成
+      # "127.0.0.1:${AI_ITERATION_PORT:-8091}:8080"（本机自用没问题），但那样 Worker 也连不上，
+      # 需要另给 Worker 通路（例如经网关反代 + 只放行特定路径）。
+      - "${AI_ITERATION_PORT:-8091}:8080"
+    networks:
+      - qiaomes-net
+
 volumes:
   qiaomes_pgdata:
 
