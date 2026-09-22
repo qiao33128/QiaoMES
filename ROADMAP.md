@@ -22,7 +22,7 @@
 4. **业务失败不抛异常**：统一用 `Result` / `Error` 表达，异常只用于不可恢复的技术故障。
 5. **横切关注点集中**：事务、异常、日志、授权一律在 `BuildingBlocks/Infrastructure` 或主机统一处理，模块内不重复实现。
 
-### 当前状态（2026-09-16 更新）
+### 当前状态（2026-09-22 更新）
 
 **阶段 1 已完成**（33 个自动化测试全绿）：统一异常处理 + ProblemDetails、结构化日志与 TraceId、RBAC 权限体系（角色-权限持久化、动态授权策略、角色/用户管理接口与页面）、查询下推数据库、并发安全的工单号生成、跨模块单事务（共享连接 + 提交后动作）、健康检查端点、GitHub Actions CI。
 
@@ -42,7 +42,9 @@
 
 **部署（X.9 自动部署已完成）**：`qiaomes-api:latest` / `qiaomes-web:latest` 已推 TCR 并部署到阿里云 —— `http://139.196.195.44:8090` 与 `https://mes.qiaoqiaoqiao.me`（当前版本 = v3.0 阶段 6）。CI/CD 已就绪：push `main` 自动「测试 → 构建推镜像 → 云助手部署 → 健康检查 + 公网冒烟」，见 `.github/workflows/deploy.yml` 与 `docs/CICD.md`（需在仓库配 Secrets：`ALIYUN_AK/SK/INSTANCE_ID` + 镜像仓凭证 + `JWT_SECRET_KEY`）。
 
-**下一步**：横切改进池（认证增强、审计日志、i18n、PDA 扫码）与 SMT 特色线（上料防错、钢网锡膏时效管控）；运维侧建议把 `ALIYUN_AK/SK` 换成 RAM 子用户，并把 5432 端口收回内网。
+**阶段 7 已接入（试验）**：**AI 自迭代**（改进建议 → AI 评审与交叉对比 → 周五冻结审阅 → 周六自动执行并上线）。宿主只做入口、权限闸门与密钥代持，业务数据全在独立的 AI 迭代服务里；配置与排错见 `docs/ITERATION.md`。
+
+**下一步**：横切改进池（认证增强、审计日志、i18n、PDA 扫码）与 SMT 特色线（上料防错、钢网锡膏时效管控）；运维侧只剩一条待办 —— 把 `ALIYUN_AK/SK` 换成 RAM 子用户（`5432` 已收回 `127.0.0.1`；生产默认密钥已从 `appsettings.Production.json` 移除并加了启动体检）。
 
 ---
 
@@ -204,6 +206,32 @@
 
 ---
 
+## 阶段 7 · AI 自迭代（改进建议 → 迭代计划 → 自动执行）· 试验
+
+**目标**：把「提改进建议 → 评审排期 → 改代码 → 跑测试 → 上线」这条链本身自动化，用来迭代 QiaoMES 自己。
+
+**分工（刻意的取舍）**：QiaoMES 只做 **入口 + 权限闸门 + 密钥代持**；建议、迭代计划、审阅留痕、执行审计
+全部在**独立的 AI 迭代服务**里（私有仓 `qiao33128/ai-iteration`）。宿主不存一份 —— 再存一份必然出现两份真相；
+迭代服务的管理员密钥由宿主服务端代持、**不下发浏览器**。
+
+**前置依赖**：阶段 6（AI 接入的编排与「配置/环境变量」约定）与 X.9（自动部署，自动执行最终要靠它上线）。
+
+| # | 任务 | 验收标准（DoD） | 状态 |
+|---|---|---|---|
+| 7.1 | 权限与权限闸门 | ① 新增 `iteration:suggest`（提「修改现有功能」的建议，主管默认持有）/ `iteration:manage`（提「新增功能」建议 + 审阅计划，仅 `admin`）；② 「只能对自己可用的功能提建议」**由服务端按该页面的权限码强制**（复用 `perm:` 动态策略），前端下拉只是可选项、不是安全边界 | [x] |
+| 7.2 | 宿主侧客户端 | ① `IterationClient` 只做转发 + `X-Admin-Key` 代持 + 独立超时（默认 180s，提建议要调大模型做评审与一致性检查）；② 失败一律用 `IterationResult` 表达（**不抛异常**），调用方能区分「服务没配 / 服务不可达 / 服务说不行」并给出不同提示 | [x] |
+| 7.3 | 前端「改进建议」页 | ① 展示当前周期与本期计划（风险标签 / 影响面 / 风险依据）；② **冲突与歧义当场列出**（未裁决前该条目不自动执行）；③ 提建议表单（类型 + 针对功能 + 标题 + 详细说明）；④ 管理员可批准 / 否决 / 提意见（提意见即本期顺延）并手动推进周期 | [x] |
+| 7.4 | 周期编排 | 周一 ~ 周四提建议（AI 评审 + 与已有计划交叉对比，干净才合并）；**周五 00:00 冻结收集**并留一整天审阅；周五 24:00 结算（**低风险沉默即放行，中 / 高风险沉默即顺延**，有意见或报过冲突的一律顺延）；**周六 08:00 自动执行** | [x] |
+| 7.5 | 安全边界 | ① 自动合并只做**快进式推送、绝不 `--force`**（`main` 这期间前进过就如实报错转人工）；② 判据硬性：编译通过 + **全量测试全绿** + 无越界改动（超出声明影响面即失败）+ 无残留未提交文件；③ 执行环境与生产**在资源上隔离**（容器限内存 / CPU + 独立 swap） | [x] |
+| 7.6 | 部署配置透传 | ① `docker-compose.yml` / `docker-compose.deploy.yml` 均透传 `Iteration__BaseUrl` / `Iteration__AdminKey`（本地与线上一致，否则本地开发配不了这一项）；② CI 侧走仓库 Variables（`ITERATION_BASE_URL`）/ Secrets（`ITERATION_ADMIN_KEY`），`gh_deploy_aliyun.py` 的 `ENV_KEYS` 已纳入**合并写入**；③ **两个都留空即功能关闭**（页面给明确提示，不报错）；④ 配置来源与排错见 `docs/ITERATION.md` | [x] |
+
+**已知限制**：① 执行跑在 2 vCPU / 896MB + swap 的机器上，**慢**（首次还要冷 NuGet 缓存，之后走持久化缓存）；
+② 规划器看不到代码仓库，`impact.files` 有时为空，会让「越界校验」对那类条目不生效。
+
+> 📖 配置填在哪里 / 报错对照表 / 权限 / 周期节奏见 **`docs/ITERATION.md`**。
+
+---
+
 ## 横切改进池（随时可做，不属于阶段）
 
 | # | 任务 | 说明 | 状态 |
@@ -238,6 +266,10 @@
 
 | 日期 | 版本 | 变更 |
 |---|---|---|
+| 2026-09-22 | v3.5 | **迭代服务配置做成「页面上就能填」（保存即生效、密钥不进数据库、只回掩码）**：新增配置文件 `config/iteration.json`（编排把宿主目录挂到容器 `/app/config`）+ `IterationSettingsFile` + `IIterationSettingsStore` / `IterationSettingsStore`（未提供的项沿用当前值；地址留空 = 显式关停）+ 三个接口 `GET/PUT /api/iteration/config`、`POST /api/iteration/config/test`（均需 `iteration:manage`），前端「改进建议」页新增配置弹窗。要点：① 🔴 **密钥只写在服务器的配置文件里**（Linux 上 `0600`、与 `.env` 同一档保护），因此**不进数据库、也不会出现在任何 `pg_dump` 备份里**；路径可用 `Iteration:ConfigFile` 覆盖；② 文件优先、**没有文件才回落到部署配置**（appsettings / 环境变量）—— 删掉文件立刻回退，**不用重启**；③ **不缓存**（每次直接读盘）：任何缓存都会造成"手工删了 / 改了文件，页面还显示旧值"这种最难解释的现象（原先的 2 秒缓存在实测中确实出现过），而读一个几百字节文件的成本可以忽略；④ 为了让"页面改完立即生效"，`IterationClient` 改为**每次请求现读配置并现算绝对地址** —— 原先靠 `HttpClient.BaseAddress`，那是启动时定型的，会出现"页面提示保存成功、请求却还打向老地址"；⑤ `BaseUrl` 的 `null` 与 `''` 语义分开（`null`=未指定沿用部署配置，`''`=页面上显式关停），因为"地址为空 = 功能关闭"在这个功能里是一等状态；⑥ 「测试连接」只做**只读**探活（`GET /health/ready`），**刻意不校验密钥值是否一致**：迭代服务的管理员接口全是带副作用的 POST（冻结周期 / 批准条目 / 领任务），拿来做探活会真的改数据 —— 如实告诉用户"密钥对不对要用一次真实的管理员操作验证"，而不是给一个假的"全部正常"。⑦ 配套：`.gitignore` 排除 `config/`（里面有密钥）；`deploy/gh_deploy_aliyun.py` 与 `deploy/one-shot.sh` 创建该目录并 `chown 1654`（容器以非 root 运行，否则写不进去）；`tools/start-local.ps1` 本机也预建。⑧ 顺带把 `SecretProtector`（凭据加密/掩码工具）从 `Assistant.Domain` 下沉到 `QiaoMES.Shared.Security`：避免让另一个功能为一个小工具去引用业务模块；盐保持不变，已保存的密钥不受影响，原有单测一行未改即通过。<br/>**注：** 本项一度按"加密落库"实现（新增 `integration.iteration_settings` 单行表 + `IterationSetting` 实体 + EF 迁移），复核后判断"页面可改的配置落库"会把密钥从**文件权限级**保护降到**库读权限级**保护（备份 / 只读账号都会顺带带走它），用户明确要求**密钥不进库**，故改为上述文件方案，并**已把落库那套完全撤回**（`dotnet ef migrations remove` 撤销迁移，本机库的表与历史行一并清理）。<br/>**另修一个自引入的回归**：上一版把 postgres 端口从 `0.0.0.0` 收到 `127.0.0.1` 时没考虑 **Docker Desktop 只代理 `0.0.0.0` 的端口映射**，导致本机 `dotnet run` 连不上库（实测 connection refused）→ 改为 `${POSTGRES_BIND:-127.0.0.1}`：服务器保持回环（安全），本机由 `tools/start-local.ps1` 写入 `0.0.0.0`。 |
+| 2026-09-22 | v3.4 | **本机一键启动 + 两个平台差异修复**：新增 `tools/start-local.ps1`（薄壳，委托 `windows-auto-update.ps1` + `-Open`），实现 `pwsh tools/start-local.ps1` 一条命令「拉镜像仓最新镜像 → 起容器 → 打开浏览器」。配套修正：① 🔴 **Docker Desktop 的宿主机路由不到容器 IP** —— 原本沿用部署脚本 `gh_deploy_aliyun.py` 的「取容器 IP 探 /health/ready」思路，那在 Linux 服务器上可行，在 Windows（WSL2 后端）必然超时，导致健康检查把**已经跑好的服务**判成失败；改为「容器 IP → 经前端端口 /health/ready → 经前端端口打 401 接口」三级回退，并把轮询从「轮数×每轮耗时」改成**墙钟预算**（原先会从 180 秒拖成 8 分钟）。② 🔴 **nginx 的 `location /` 会把未知路径回退到 index.html**，所以 `/health/ready` 在没专门代理它的镜像上**也返回 200**（内容是 SPA 的 HTML）—— 只看状态码的健康检查等于永远通过；现在校验**响应不是 text/html** 才算数，并给 `nginx.conf` 补了 `location /health/` 真正代理到 API。③ 本机 `.env` 改为**自己生成**（`WEB_PORT=8080`），不再复制服务器向的 `.env.example`（8090 端口会把本机端口悄悄改掉）；`JWT_SECRET_KEY` 优先**沿用运行中容器**的值，避免启动脚本擅自换密钥导致所有人重新登录、问数页已存模型密钥失效。④ 新增镜像仓登录步骤（密码走 stdin）。实测：一键启动 15 秒内完成、`docker ps` 显示 api/web 为镜像仓镜像、真实登录返回 29 个权限。 |
+| 2026-09-22 | v3.3 | **本机（Windows + Docker Desktop）自动更新**：新增 `tools/windows-auto-update.ps1`。出发点是一个容易误解的点 —— 编排文件里的 `restart: unless-stopped` 只能让容器**用现有镜像**重新起来，**不会**去镜像仓拉新镜像，所以「重启后自动更新」必须有人做 `pull` + 重建。脚本流程：① 轮询等 Docker 引擎就绪（开机时 Docker Desktop 还在启动，这是最容易失败的一环）；② 就位 `.env`，缺 `JWT_SECRET_KEY`（或还是模板里的 `Change_Me` 占位）就生成随机串；③ 确保 external 网关网络存在；④ `compose pull` + `up -d --force-recreate --wait`；⑤ 健康检查。🔴 **刻意不碰 `POSTGRES_PASSWORD`** —— 本机库是用默认值 `qiaomes_dev` 初始化的，凭空换密码必然连不上（与 `deploy/one-shot.sh` 同一口径）。计划任务只支持 `-RegisterTask` / `-UnregisterTask` 两条命令，且必须用**登录时**触发（Docker Desktop 是用户级程序，系统启动时引擎还没起来）；脚本本身幂等，可反复执行。 |
+| 2026-09-22 | v3.2 | **阶段 7 · AI 自迭代接入（试验）**：新增 `src/QiaoMES.Api/Iteration`（`IterationOptions` + `IterationClient`，只做转发 + `X-Admin-Key` 代持 + 独立超时）与 `IterationController`（`/api/iteration/*`，权限闸门 `iteration:suggest` / `iteration:manage`），前端新增「改进建议」页。周期节奏：周一~周四提建议（AI 评审 + 与已有计划交叉对比，冲突/歧义当场抛出）→ 周五 00:00 冻结 → 周五 24:00 结算（低风险沉默放行、中/高风险沉默顺延）→ 周六 08:00 自动执行并合并。**宿主不存业务数据**（再存一份必然两份真相），管理员密钥不下发浏览器。同时补齐**配置落地面**：① `appsettings.json` / `appsettings.Development.json` 补 `Iteration` 节 —— 之前只在代码里读了配置，配置样例里根本没有这个键，这是「报迭代服务还没配置却找不到地方填」的根因；② `docker-compose.yml` 补透传（此前只有部署版有，本地开发配不了）；③ CI 链路打通（`deploy.yml` 透传 `ITERATION_BASE_URL` / `ITERATION_ADMIN_KEY`，`gh_deploy_aliyun.py` 的 `ENV_KEYS` 纳入合并写入）；④ `docs/CICD.md` 的 Secrets / Variables 表补全这两个键；⑤ 新增 `docs/ITERATION.md`（配置填在哪里 / 报错对照表 / 权限 / 周期节奏）与仓库根 `.env.example`。另：**Docker 封装改进** —— 新增 `.dockerignore`（此前会把 `frontend/node_modules`（1 万+ 文件）、`src/**/bin｜obj`、`.git`、本地日志全部传给 build daemon）、`frontend/Dockerfile` 的 Node 版本由 22 对齐到 CI 的 20、`docker-compose.deploy.yml` 给 `web` 补 healthcheck（盯住「容器 Up 但端口无人应答」这类 nginx entrypoint 卡死的坑）。README 重写为目录化结构 + 新增「配置项填在哪里」总表。**另做两项安全加固**：① `appsettings.Production.json` 删掉明文的默认 `Jwt:SecretKey` 与含 `qiaomes_dev` 的 `DefaultDb` —— 放进去等于把弱口令随镜像发出去，改为**启动体检**（密钥为空直接报错并说清缺什么；仍是内置占位值则在生产打醒目警告、不阻断本地 compose 兜底）；② `postgres` 的 `5432` 端口由 `0.0.0.0` 收回 `127.0.0.1`（这台机器有公网 IP，等于把库暴露在扫描面上），容器间互连不受影响；③ 生产编排的 `Jwt__SecretKey` 由「内置兜底值」改为**必填**（`${JWT_SECRET_KEY:?}`）+ CI 预检提前拦截 —— 此前漏配 Secret 时生产会静默使用一个公开密钥，漏配也照样"部署成功"；本地 compose 仍保留兜底，保证 `docker compose up -d --build` 开箱即用。另新增 **`deploy/one-shot.sh`**（**一条命令、幂等**的服务器部署脚本：自动补齐 `.env` / 建 external 网络 / 需要时登录镜像仓 / `pull` / `up -d --wait` / 健康检查与失败提示 —— 🔴 数据库密码**只在全新库上生成**，卷已存在时绝不凭空造新密码，因为那必然连不上已初始化的库）与 **`.gitattributes`**（强制 `*.sh` / `.dockerignore` / `*.yml` 用 LF：仓库此前没有此文件而本机 `core.autocrlf=true`，CRLF 的 `.sh` 在 Linux 上会以 bad interpreter 直接失败、CRLF 的 `.dockerignore` 会让规则**静默失配**）。 |
 | 2026-09-16 | v3.1 | **自动化部署上线（X.9）**：新增 `Deploy` 工作流 —— `push main` → 复用 `ci.yml` 跑测试 → `docker buildx` 构建两个镜像并推镜像仓（GHA 层缓存）→ `deploy/gh_deploy_aliyun.py` 经**阿里云云助手 RunCommand** 在服务器上执行 `compose pull && up -d --force-recreate`。要点：① **服务器侧不构建**（1GB 内存跑 .NET/Node 构建必 OOM，这也是看板站当初放弃镜像仓、改为服务器本地构建的原因，而 QiaoMES 双构建走不了那条路）；② 走 HTTPS OpenAPI，**不依赖被公司防火墙封锁的 SSH**；③ 服务器脚本 base64 下发 + `nohup` 后台执行 + 双层轮询日志（RunCommand 单次 15 分钟超时会杀掉长任务）；④ `.env` 采用**合并写入**（只覆盖本次提供的键）—— `POSTGRES_PASSWORD` 一旦被 CI 覆盖成默认值就会让 API 连不上已初始化的数据库卷，这条是硬约束；⑤ 健康检查用 `docker inspect` 取容器 IP 探 8080（aspnet 运行时镜像里没有 curl/wget，且不给宿主机加端口）；⑥ Runner 侧再做一次**公网冒烟**（登录 + `/api/assistant/status`），DNS/TLS/Caddy/应用任一层断了都能立刻发现。编排文件由 `docker-compose.tcr.yml` 升级重命名为 **`docker-compose.deploy.yml`**（registry 中立、`gateway` 网络声明为 external 以免容器重建后丢失域名反代）。 |
 | 2026-09-16 | v3.0 | **阶段 6 完成（M6 交付）：智能问数（AI 接入数据库）**。新增 `Assistant` 模块（Domain/Application/Infrastructure/Api 四层齐备）：① **语义层** —— 19 张核心表的业务注解（中文名 / 枚举取值 / 指标口径），列名与类型**实时读 `information_schema`** 再与注解合并，表结构变了也不会讲错列名，带 10 分钟缓存，`GET /api/assistant/schema` 可查看；② **NL2SQL** —— OpenAI 兼容 `/chat/completions`（DeepSeek / 通义 / Kimi / 本地 Ollama 换配置即可），强制 JSON 输出 + 宽松解析，**失败把报错回灌模型自我修复**（默认 2 轮），支持追问上下文，未配模型时优雅降级不抛 500；③ **只读三道防线** —— `SqlGuard`（单条 SELECT/WITH + 关键字黑名单 + 敏感 schema + 危险函数 + 禁注释/多语句/行级锁 + 强制外包 LIMIT，**25 个单元测试**）+ 独立连接 `SET TRANSACTION READ ONLY` 与 `statement_timeout` + 可配置只读账号；④ **前端「智能问数」页** —— SQL 可展开可复制（不做黑盒）、表格/柱状/折线/饼图四视图（纯 SVG，不引图表库）、CSV 导出、行数与耗时与修复轮次元信息；⑤ 新增权限 `assistant:read` / `assistant:ask`。同时交付 **一键演示数据** `tools/seed-demo.ps1`（幂等 + `DEMO-` 前缀可精确清理 + 时间线铺开到最近 N 天 + 连带重算预聚合）与 **SPC 控制图前端**（均值/±3σ/规格限四线叠加 + 判异横幅 + 超限点标红，新增 `GET /api/quality/spc/items` 供下拉选择）。测试增至 **132 个全绿**（领域 49 + 集成 83），新增 `docs/AI-QUERY.md` |
 | 2026-09-15 | v1.0 | 首次建立路线图；确定 5 阶段 + 横切改进池 + SMT 特色线 |

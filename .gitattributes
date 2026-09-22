@@ -1,0 +1,32 @@
+# ============================================================
+# 换行符策略
+#
+# 背景：开发机是 Windows 且 core.autocrlf=true —— 检出 CRLF、入库 LF，本身没问题；
+# 但下面这些文件是**给 Linux 读的**，工作区里也必须是 LF，否则会静默出错：
+#   *.sh            CRLF 会让 shebang 变成 "#!/usr/bin/env bash\r" → bad interpreter
+#   .dockerignore   CRLF 可能让规则变成 "*.md\r"，构建上下文裁不掉（而且完全不报错）
+#   *.yml / Dockerfile   在 Linux 上由 compose / CI / 容器读取
+#   .env.example    被复制成 .env 后由 shell 与 compose 读取
+# 显式声明一次，比每次排查「为什么脚本在服务器上跑不起来」便宜得多。
+# ============================================================
+
+* text=auto
+
+# 强制 LF（工作区也保持 LF，不随 autocrlf 变成 CRLF）
+*.sh           text eol=lf
+*.bash         text eol=lf
+.dockerignore  text eol=lf
+Dockerfile     text eol=lf
+*.Dockerfile   text eol=lf
+*.yml          text eol=lf
+*.yaml         text eol=lf
+.env.example   text eol=lf
+
+# 二进制：不做任何转换
+*.png    binary
+*.jpg    binary
+*.ico    binary
+*.woff   binary
+*.woff2  binary
+*.dll    binary
+*.pdb    binary

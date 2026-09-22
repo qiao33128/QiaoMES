@@ -1,52 +1,223 @@
 # QiaoMES
 
-一个独立开发的开源 MES（制造执行系统），用于学习和巩固开发技能，解决设想中的问题，提高开发能力。
+一个独立开发的开源 MES（制造执行系统），面向离散制造（优先 SMT / 电子组装）。用于学习和巩固开发技能，解决设想中的问题，提高开发能力。
 
-> 📌 开发计划、里程碑与验收标准见 **[ROADMAP.md](ROADMAP.md)**。
+**在线演示**：<https://mes.qiaoqiaoqiao.me> · **默认管理员**：`admin` / `Admin123!`
+
+> 📌 开发计划、里程碑与验收标准见 **[ROADMAP.md](ROADMAP.md)**（本项目**唯一**的规划源）。
+> 📖 专项文档见下方 [文档索引](#文档索引)，配置项不知道怎么填直接跳到 [配置项填在哪里](#配置项填在哪里)。
+
+---
+
+## 目录
+
+- [这是什么](#这是什么)
+- [技术栈](#技术栈)
+- [30 秒跑起来](#30-秒跑起来)
+- [配置项填在哪里](#配置项填在哪里) ← **「迭代服务还没配置」这类报错看这里**
+- [本地开发](#本地开发)
+- [部署](#部署)
+- [演示数据](#演示数据)
+- [已实现功能](#已实现功能)
+- [架构说明](#架构说明)
+- [文档索引](#文档索引)
+- [技术支持与联系](#技术支持与联系)
+
+---
+
+## 这是什么
+
+一个**模块化单体**的 MES：主数据 → 工单 → 工序展开 → 报工 / SN 过站 → 检验与不合格闭环 → 设备与 Andon → 报表与追溯，全链路可跑通、可追溯。
+
+它不是「又一个工单 CRUD 演示」，两个差异化方向：
+
+1. **SMT 场景做深**（上料防错、钢网锡膏时效、站位表…见 ROADMAP「SMT 特色线」）。
+2. **两处 AI 落地**：`智能问数`（中文 → 只读 SQL → 结果与图表）与 `改进建议 / AI 自迭代`（提建议 → AI 评审 → 自动执行上线）。
+
+---
 
 ## 技术栈
 
-- **后端**：ASP.NET Core 10（Clean Architecture，模块化单体）
-- **前端**：Vue 3 + Vite + Element Plus（前后端分离）
-- **数据库**：PostgreSQL 16（Docker 部署）
-- **ORM**：Entity Framework Core
-- **实时通信**：SignalR（生产看板）
-- **认证授权**：JWT + RBAC（角色-权限，服务端按请求查库判定，不信任令牌声明）
-- **可观测性**：统一 ProblemDetails 错误响应、请求日志 + TraceId、健康检查探针
-- **测试**：xUnit（领域单元测试 + 真实 HTTP 管道集成测试）
+| 层 | 选型 |
+|---|---|
+| 后端 | ASP.NET Core 10（Clean Architecture，模块化单体） |
+| 前端 | Vue 3 + Vite + Element Plus（前后端分离） |
+| 数据库 | PostgreSQL 16（Docker 部署） |
+| ORM | Entity Framework Core |
+| 实时通信 | SignalR（生产看板 / Andon 大屏） |
+| 认证授权 | JWT + RBAC（角色-权限；**服务端按请求查库判定，不信任令牌声明**） |
+| 可观测性 | 统一 ProblemDetails 错误响应、请求日志 + TraceId、健康检查探针 |
+| 测试 | xUnit（领域单元测试 + 真实 HTTP 管道集成测试） |
 
-## 项目结构
+### 项目结构
 
 ```
 QiaoMES/
-├── docker-compose.yml          # PostgreSQL + API + 前端
+├── docker-compose.yml          # 本地开发编排（镜像本地构建）
+├── docker-compose.deploy.yml   # 生产部署编排（只拉镜像，服务器不构建）
+├── .env.example                # 全部可配置环境变量的模板
 ├── ROADMAP.md                  # 开发路线图（唯一规划源）
+├── deploy/                     # gh_deploy_aliyun.py（CI 用）· one-shot.sh（一条命令部署，幂等）
+├── docs/                       # 专项文档（AI-QUERY / ITERATION / CICD / PERFORMANCE）
 ├── src/
 │   ├── QiaoMES.slnx            # 解决方案
 │   ├── BuildingBlocks/         # 共享基础设施
 │   │   ├── Shared/             # Result / Error / 分页 / 权限目录 / 契约
 │   │   └── Infrastructure/     # 事务工作单元、异常处理、授权、日志、健康检查
-│   ├── Modules/                # 业务模块（模块化单体）
+│   ├── Modules/                # 业务模块（模块化单体，每个模块四层齐备）
 │   │   ├── Identity/           # 认证、用户、角色与权限
-│   │   │   └── {Domain, Application, Infrastructure, Api}
-│   │   ├── Production/         # 生产（工单、报工）
-│   │   │   └── {Domain, Application, Infrastructure, Api}
+│   │   ├── Production/         # 生产（工单、报工、SN 过站）
 │   │   ├── MasterData/         # 主数据（产品、物料、工序、工作中心、BOM、工艺路线）
-│   │   │   └── {Domain, Application, Infrastructure, Api}
 │   │   ├── Quality/            # 质量（检验、不合格处置、SPC、来料批次谱系）
 │   │   ├── Equipment/          # 设备与 Andon
 │   │   ├── Reporting/          # 报表、班次与日历、预聚合指标、只读投影
 │   │   └── Assistant/          # 智能问数（语义层 + NL2SQL + 只读护栏）
+│   │       └── {Domain, Application, Infrastructure, Api}
 │   └── QiaoMES.Api/            # 主机（组合所有模块）
 ├── tests/
-│   ├── QiaoMES.Domain.Tests/   # 领域与权限目录单元测试
+│   ├── QiaoMES.Domain.Tests/   # 领域与权限目录单元测试（无需数据库）
 │   └── QiaoMES.Api.Tests/      # 集成测试（需要 PostgreSQL）
+├── tools/                      # seed-demo.ps1（演示数据）/ perf-probe.ps1（压测）
 └── frontend/                   # Vue 3 前端
 ```
 
-## 快速开始
+---
 
-### 三种部署方式
+## 30 秒跑起来
+
+```bash
+docker compose up -d --build          # 改完代码必须带 --build，否则跑的还是旧镜像
+```
+
+- **前端**：<http://localhost:8080>（Nginx 托管前端并反代 API）
+- **管理员**：`admin` / `Admin123!`
+- **停止**：`docker compose down`（数据在 Docker 卷里，down 不会删）
+  · 卷的**实际名字带项目前缀**，是 `qiaomes_qiaomes_pgdata` 而不是编排文件里写的 `qiaomes_pgdata`
+  · 想连回环方便排查，可 `docker exec -it qiaomes-postgres psql -U qiaomes -d qiaomes`
+
+---
+
+## 配置项填在哪里
+
+**所有配置只有一个来源规则**：`appsettings.json`（默认值）→ 环境变量（覆盖它）→ 少数项支持页面内配置（再覆盖它）。
+
+`docker-compose*.yml` 里那些 `X__Y: ${X_Y}` 的写法，就是把 `.env` 里的环境变量透传成 ASP.NET Core 的配置键
+（`__` 是层级分隔符，等价于 `X:Y`）。**别写成单冒号**——冒号在 Linux 环境变量名里非法。
+
+### 总表
+
+| appsettings 键 | 环境变量 | 填在哪 | 留空 / 不填会怎样 |
+|---|---|---|---|
+| `ConnectionStrings:DefaultDb` | `ConnectionStrings__DefaultDb`（compose 已内置） | compose 里已按服务名拼好，**一般不用动** | 连不上库，容器起不来 |
+| `Jwt:SecretKey` | `JWT_SECRET_KEY`（`.env`） | `.env` / 仓库 Secrets | 用内置默认值（生产**务必**换成 ≥32 字符随机串；改了会让所有人重新登录） |
+| `Jwt:Issuer` / `Jwt:Audience` | — | appsettings | 有默认值，单机部署不用改 |
+| `Cors:Origins` | `CORS_ORIGINS`（`.env`） | `.env` / 仓库 Variables；多个用逗号分隔 | 退回 `http://localhost:8080`，跨域部署时前端调不到 API |
+| `DemoData:Enabled` | `DEMO_DATA_ENABLED`（`.env`） | 想灌演示数据时临时设 `true` | `false`：`/api/dev/demo-data` 不放行（Development 环境自动放行） |
+| `Assistant:Enabled` | `ASSISTANT_ENABLED`（`.env`） | `.env` / 仓库 Variables | `true`：启用智能问数 |
+| `Assistant:Llm:BaseUrl` / `:Model` | `ASSISTANT_LLM_BASE_URL` / `ASSISTANT_LLM_MODEL` | `.env` / 仓库 Variables | 默认 DeepSeek 端点与 `deepseek-chat` |
+| `Assistant:Llm:ApiKey` | `ASSISTANT_LLM_API_KEY` | **推荐页面内配**（菜单「智能问数」→ 模型配置，保存即生效，密钥掩码存储）；也可走 `.env` / 仓库 Secrets | 问数页显示「还没配置大模型」提示，**不报错、不触库** |
+| `Assistant:ConnectionString` | `ASSISTANT_DB_CONNECTION` | `.env`，指向独立只读账号 | 复用主连接，靠 `SET TRANSACTION READ ONLY` 兜底 |
+| `Iteration:BaseUrl` | `ITERATION_BASE_URL`（`.env`） | **推荐页面内配**（「改进建议」→ 迭代服务配置，保存即生效）；也可走 `.env` / 仓库 Variables / appsettings | **「改进建议」页显示「迭代服务还没配置」**（功能关闭，不报错） |
+| `Iteration:AdminKey` | `ITERATION_ADMIN_KEY` | 同上，需与迭代服务端 `Admin__ApiKey` 一致 | 管理员操作（审阅 / 批准 / 推进周期）会失败；提交修改建议不受影响 |
+| `Iteration:TimeoutSeconds` | — | 同上（默认 180） | 提建议要调大模型，默认值通常够用 |
+| `Iteration:ConfigFile` | — | 配置文件路径（默认 `<内容根>/config/iteration.json`） | 默认值即可；改它只是换一个存放位置 |
+
+> 变量名 → 配置键的完整映射、以及所有可复制项，见仓库根 [`.env.example`](.env.example)。
+
+### 迭代服务配置怎么填
+
+「改进建议」页报 **「迭代服务还没配置：请在「改进建议 → 迭代服务配置」里填上地址并保存」**
+= 当前生效的 `Iteration:BaseUrl` 是空的，也就是这个功能**关着**（不是故障）。
+
+**最省事的办法是页面上填**（与「智能问数」的模型配置同一套路）：左侧「改进建议」→ 右上角 **「迭代服务配置」**，
+填地址、密钥可选，点「保存并生效」——**不用重启、不用重新部署**，还能点「测试连接」先验证。
+
+⚠️ 改成放在页面上以后多了一条**会咬人的优先级**：**只要在页面上保存过一次，就以配置文件为准**，
+之后再改 `.env` / 环境变量都不会生效（弹窗里的「当前来源」会显示"存在服务器的配置文件里"）。
+要交还给部署配置就把文件删掉：`rm /root/qiaomes/config/iteration.json`（立即生效，不用重启）。
+
+🔐 **管理员密钥存在那个配置文件里（Linux 上 `0600`），不进数据库** —— 与 `.env` 同一档保护，
+也就不会被 `pg_dump` 备份带走。代价是：**备份/换机器时它要单独带走**。
+
+没有管理员能登录页面时，才走部署配置（四选一）：
+
+| 场景 | 填在哪 | 具体值 |
+|---|---|---|
+| **本机 `dotnet run`** | `src/QiaoMES.Api/appsettings.Development.json` 的 `Iteration` 节 | `BaseUrl` = `http://localhost:8091`，改完**重启后端** |
+| **本机 Docker** | 仓库根 `.env` | `ITERATION_BASE_URL=http://host.docker.internal:8091`（容器里的 `localhost` 指容器自己） |
+| **服务器 / 生产（推荐）** | GitHub 仓库 **Variables** 加 `ITERATION_BASE_URL`、**Secrets** 加 `ITERATION_ADMIN_KEY` | 与宿主同在容器网络时填服务名，如 `http://ai-iteration:8080` |
+| **任意场景（通用）** | 环境变量 `Iteration__BaseUrl` / `Iteration__AdminKey` | 注意是**双下划线** |
+
+📖 完整说明（地址该写什么、报错对照表、权限、周期节奏）见 **[docs/ITERATION.md](docs/ITERATION.md)**。
+
+---
+
+## 本地开发
+
+```bash
+# 1. 数据库
+docker compose up -d postgres
+
+# 2. 后端（启动时自动应用迁移并创建种子数据）
+cd src/QiaoMES.Api
+ASPNETCORE_ENVIRONMENT=Development dotnet run --urls http://localhost:5100
+#    Swagger:    http://localhost:5100/swagger
+#    健康检查:   http://localhost:5100/health/live · /health/ready
+
+# 3. 前端
+cd frontend && npm install && npm run dev     # http://localhost:5173
+
+# 4. 测试
+dotnet test src/QiaoMES.slnx                  # 全部（集成测试需要本地 PostgreSQL）
+dotnet test tests/QiaoMES.Domain.Tests        # 仅领域单元测试（无需数据库）
+```
+
+**新增数据库迁移**（模块各自维护迁移，设计时工厂已就绪，无需启动应用）：
+
+```bash
+dotnet ef migrations add <名称> \
+  --project src/Modules/Identity/Infrastructure/QiaoMES.Identity.Infrastructure.csproj \
+  --startup-project src/QiaoMES.Api/QiaoMES.Api.csproj \
+  --context IdentityDbContext --output-dir Persistence/Migrations
+```
+
+### 一键启动本机（用镜像仓里的版本，不本地构建）
+
+```powershell
+pwsh tools/start-local.ps1                        # 拉最新镜像 → 起容器 → 打开浏览器
+pwsh tools/start-local.ps1 -WaitHealthySeconds 0  # 不等健康检查
+pwsh tools/start-local.ps1 -RegistryUser xxx -RegistryPassword yyy   # 镜像仓还没登录过时
+```
+
+🔴 它按 `docker-compose.deploy.yml` 起容器，所以跑完本机就是**镜像仓里的版本**（不再是本地构建版）。
+容器名与数据卷相同，**数据不受影响**；想回到本地构建版跑 `docker compose up -d --build` 即可。
+
+它还会**新建一份本机专用的 `.env`**（`WEB_PORT=8080`）—— 刻意**不复制 `.env.example`**：
+那份是给服务器写的（8090 端口、域名 CORS），复制过来会把本机端口悄悄改掉，是个很难发现的坑。
+
+### 让本机跟着「线上最新版本」自动更新（可选）
+
+`tools/windows-auto-update.ps1` 是上面那条一键启动的「无人值守版」，做的正是
+`restart: unless-stopped` **做不到**的那一步：去镜像仓 `pull` 新镜像再重建（重启策略只会用**现有镜像**把容器拉起来）。
+
+```powershell
+pwsh tools/windows-auto-update.ps1 -DryRun        # 先看要做什么，不调用 docker、不写文件
+pwsh tools/windows-auto-update.ps1                # 手动执行一次（不打开浏览器）
+pwsh tools/windows-auto-update.ps1 -RegisterTask  # 注册成「登录后延迟 2 分钟」自动执行
+pwsh tools/windows-auto-update.ps1 -Status        # 查看注册状态与上次结果
+pwsh tools/windows-auto-update.ps1 -UnregisterTask
+```
+
+两个要点：① 触发方式必须是**登录时**而不是系统启动 —— Docker Desktop 是用户级程序，开机时引擎还没起来，
+所以脚本内部会先轮询等 `docker info` 就绪（另外请确认 Docker Desktop 已勾选
+`Settings → General → Start Docker Desktop when you sign in to your computer`）；
+② 它**只补 `JWT_SECRET_KEY`，绝不碰 `POSTGRES_PASSWORD`** —— 本机库是用默认值 `qiaomes_dev` 初始化的，凭空换密码必然连不上。
+
+---
+
+## 部署
+
+### 四种方式
 
 ```bash
 # ① 本地构建（开发机自验；改完代码必须带 --build，否则跑的还是旧镜像）
@@ -55,12 +226,27 @@ docker compose up -d --build
 # ② 服务器人工部署（只拉镜像，服务器无需 .NET SDK / Node，也不吃内存去构建）
 docker compose -f docker-compose.deploy.yml up -d
 
-# ③ 自动部署（推荐）：push main 即发布
-#    GitHub Actions：测试 → 构建镜像并推仓 → 云助手在服务器上 pull & up -d → 健康检查 + 公网冒烟
+# ③ 自动部署（推荐，日常用这个）：push main 即发布
+#    测试 → 构建镜像并推仓 → 云助手在服务器上 pull & up -d → 健康检查 + 公网冒烟
 #    见 .github/workflows/deploy.yml，准备清单见 docs/CICD.md
 ```
 
-方式 ②③ 需要先把镜像推到镜像仓（腾讯云 TCR 或阿里云 ACR，见 [docs/CICD.md](docs/CICD.md) 第 2.1 节）：
+**④ 一条命令（应急 / 换机器 / 没有 CI 时最省事）** —— `deploy/one-shot.sh`，**幂等**，可反复执行：
+
+```bash
+# 服务器上首次先把脚本取下来（这一行只需要一次）
+curl -fsSL -o /root/qiaomes-one-shot.sh https://raw.githubusercontent.com/qiao33128/QiaoMES/main/deploy/one-shot.sh
+
+# 之后每次「部署」就是这一行
+bash /root/qiaomes-one-shot.sh
+```
+
+它会自动：建目录 → 就位编排文件 → **补齐 `.env`**（缺 `JWT_SECRET_KEY` 生成随机串；数据库密码只在**全新库**上生成，卷已存在时绝不凭空造新密码）→
+建好 external 网关网络 → 需要时登录镜像仓 → `pull` → `up -d --wait` → 健康检查并打印访问地址。
+**只 pull / up，不执行任何数据库脚本**，也不会删卷；重复执行结果一致（要传私有仓库凭证就加
+`REGISTRY_USERNAME=... REGISTRY_PASSWORD=...`，脚本头部注释列出了全部可覆盖参数）。
+
+方式 ②③④ 需要先把镜像推到镜像仓（腾讯云 TCR 或阿里云 ACR，见 [docs/CICD.md](docs/CICD.md) 第 2.1 节）：
 
 ```bash
 docker login ccr.ccs.tencentyun.com
@@ -70,239 +256,65 @@ docker push ccr.ccs.tencentyun.com/qiaoqiao11/qiaomes-api:latest
 docker push ccr.ccs.tencentyun.com/qiaoqiao11/qiaomes-web:latest
 ```
 
-可用环境变量覆盖：`QIAOMES_API_IMAGE` / `QIAOMES_WEB_IMAGE` / `JWT_SECRET_KEY` / `POSTGRES_PASSWORD` / `WEB_PORT` / `CORS_ORIGINS` / `GATEWAY_NETWORK` / `DemoData__Enabled` / `Assistant__*`。
-服务器上统一写在 `/root/qiaomes/.env`（CI 部署时会合并写入），**必须先有 `.env` 再 `up -d`**。
+服务器上的可变项统一写在 `/root/qiaomes/.env`（CI 部署时**合并写入**，只覆盖本次显式提供的键），
+**必须先有 `.env` 再 `up -d`**。
 
-> 🔴 **三个必读的坑**
-> 1. 改完代码没加 `--build` → 跑的还是旧镜像（表现为前端页面/菜单是旧的）。
-> 2. **漏写 `.env` 就 `up -d`** → `WEB_PORT` 退回 8080（外网端口变了）、`POSTGRES_PASSWORD` 退回默认值（API 连不上已初始化的数据库卷）。
-> 3. 日志出现 `Npgsql 42703 column xxx does not exist` → 库表结构与代码不一致（旧 volume 缺 `__EFMigrationsHistory`）。先 `pg_dump -Fc` 备份，再 `docker compose down -v` + `up -d --build` 让迁移从头应用。
+### 🔴 四个必读的坑
 
-### 本机跑起来
+1. **改完代码没加 `--build`** → 跑的还是旧镜像（表现为前端页面/菜单是旧的）。
+2. **漏写 `.env` 就 `up -d`** → `WEB_PORT` 退回 8080（外网端口变了）、`POSTGRES_PASSWORD` 退回默认值（API 连不上已初始化的数据库卷）。
+3. **漏配 `JWT_SECRET_KEY`** → 生产编排会**直接拒绝启动**并打印「未设置 JWT_SECRET_KEY…」（CI 侧也会在最前面先拦一次，报错更清楚）。这是刻意的：以前 compose 和 `appsettings.Production.json` 里都带着一个公开的兜底密钥，漏配也照样「部署成功」，等于任何人都能伪造令牌。**失败方式很安全** —— compose 在动手前就退出，旧容器继续跑，不会造成线上中断。本地 `docker-compose.yml` 仍保留兜底值，所以「一行命令跑起来」不受影响。
+4. **日志出现 `Npgsql 42703 column xxx does not exist`** → 库表结构与代码不一致（旧 volume 缺 `__EFMigrationsHistory`）。先 `pg_dump -Fc` 备份，再 `docker compose down -v` + `up -d --build` 让迁移从头应用。
 
-整个系统（PostgreSQL + 后端 + 前端）通过 Docker Compose 一条命令启动：
-
-```bash
-docker compose up -d --build
-```
-
-部署完成后访问：
-
-- **前端页面**：`http://localhost:8080`（Nginx 托管前端并反代 API）
-- 默认管理员账号：`admin` / `Admin123!`
-
-停止系统：
-
-```bash
-docker compose down
-```
-
-数据保存在 Docker 卷 `qiaomes_pgdata` 中，`docker compose down` 不会删除数据。
-
-### 生产环境配置
-
-生产配置通过环境变量注入（见 `docker-compose.deploy.yml`），关键项包括：
-
-- `ConnectionStrings__DefaultDb`：数据库连接（**所有模块共用同一连接**，用于跨模块事务）
-- `Jwt__SecretKey`：JWT 密钥（**生产环境务必修改**）
-- `Cors__Origins`：允许的跨域来源
-- `Assistant__*`：智能问数（模型端点与密钥，见 [docs/AI-QUERY.md](docs/AI-QUERY.md)）
-- `DemoData__Enabled`：演示数据端点（默认关闭）+ `GATEWAY_NETWORK`：网关网络（域名反代用）
+> 数据库端口只绑回环（`127.0.0.1:5432`），不对公网开放；需要直连时走 SSH 隧道或云厂商会话通道。
 
 ---
 
-## 本地开发
+## 演示数据
 
-### 1. 启动数据库（PostgreSQL）
-
-```bash
-docker compose up -d postgres
-```
-
-### 2. 启动后端
+一键灌一套 SMT 场景（幂等 + 可精确清理，手工录入的数据不受影响）：
 
 ```bash
-cd src/QiaoMES.Api
-ASPNETCORE_ENVIRONMENT=Development dotnet run --urls http://localhost:5100
+pwsh tools/seed-demo.ps1                                   # 本地 docker compose（8080 端口）
+pwsh tools/seed-demo.ps1 -BaseUrl https://mes.qiaoqiaoqiao.me   # 服务器 / 域名部署
+pwsh tools/seed-demo.ps1 -Days 45 -WorkOrders 12 -SnPerOrder 80  # 自定义规模
+pwsh tools/seed-demo.ps1 -Cleanup                           # 只清理
 ```
 
-后端启动时自动应用数据库迁移并创建种子数据。默认管理员账号：
-
-- 用户名：`admin`
-- 密码：`Admin123!`
-
-Swagger 文档：`http://localhost:5100/swagger`
-健康检查：`http://localhost:5100/health/live`、`http://localhost:5100/health/ready`
-
-### 3. 启动前端
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-前端访问：`http://localhost:5173`
-
-### 4. 运行测试
-
-```bash
-# 全部测试（集成测试需要本地 PostgreSQL）
-dotnet test src/QiaoMES.slnx
-
-# 仅领域单元测试（无需数据库）
-dotnet test tests/QiaoMES.Domain.Tests
-```
-
-### 5. 新增数据库迁移
-
-```bash
-# 模块各自维护迁移（设计时工厂已就绪，无需启动应用）
-dotnet ef migrations add <名称> \
-  --project src/Modules/Identity/Infrastructure/QiaoMES.Identity.Infrastructure.csproj \
-  --startup-project src/QiaoMES.Api/QiaoMES.Api.csproj \
-  --context IdentityDbContext --output-dir Persistence/Migrations
-```
-
-## 演示数据与智能问数
-
-### 一键灌一套 SMT 演示数据
-
-```bash
-# 本地 docker compose（8080 端口）
-pwsh tools/seed-demo.ps1
-
-# 服务器 / 域名部署
-pwsh tools/seed-demo.ps1 -BaseUrl https://mes.qiaoqiaoqiao.me
-
-# 自定义规模 / 只清理
-pwsh tools/seed-demo.ps1 -Days 45 -WorkOrders 12 -SnPerOrder 80
-pwsh tools/seed-demo.ps1 -Cleanup
-```
-
-它会灌入：3 条 SMT 产线 × 5 个机台工位、3 个产品（各带 BOM 与工艺路线）、5 道工序、12 个 SMT 不良代码、
-2 个班次（含跨天夜班）、8 张工单（草稿 → 已完工）与 40 条工序任务、
-约 300 颗 SN 与约 1800 条过站轨迹、8 张 IQC + 30 张 IPQC + 6 张 FQC 检验单、
-不合格处置、15 台设备（含停机历史与点检）、6 条 Andon 呼叫，
+灌入内容：3 条 SMT 产线 × 5 个机台工位、3 个产品（各带 BOM 与工艺路线）、5 道工序、12 个 SMT 不良代码、
+2 个班次（含跨天夜班）、8 张工单（草稿 → 已完工）与 40 条工序任务、约 300 颗 SN 与约 1800 条过站轨迹、
+8 张 IQC + 30 张 IPQC + 6 张 FQC 检验单、不合格处置、15 台设备（含停机历史与点检）、6 条 Andon 呼叫，
 并把时间线铺开到最近 N 天、重算预聚合指标。
 
-**幂等 + 可清理**：所有演示数据以 `DEMO-` 前缀标识，反复执行只会重建，
-`DELETE /api/dev/demo-data` 可精确清除，手工录入的数据完全不受影响。
-
-> 该端点默认**仅 Development 环境**放行；要在演示服务器上开启，显式设置 `DemoData:Enabled=true`。
-
-### 智能问数（中文 → 只读 SQL）
-
-左侧菜单「智能问数」：用中文提问，服务端让大模型生成 SQL，经只读护栏校验后执行，直接给结果与图表。
-
-```jsonc
-// appsettings.json / 环境变量（任何 OpenAI 兼容端点都行）
-"Assistant": {
-  "Enabled": true,
-  "Llm": { "BaseUrl": "https://api.deepseek.com/v1", "ApiKey": "sk-xxx", "Model": "deepseek-chat" }
-}
-```
-
-部署时也可以走环境变量：
-
-```bash
-ASSISTANT_LLM_API_KEY=sk-xxx ASSISTANT_LLM_MODEL=deepseek-chat docker compose -f docker-compose.deploy.yml up -d
-```
-
-安全设计是**三道防线**：`SqlGuard` 白名单校验（只允许单条 `SELECT`/`WITH`）→
-数据库层 `SET TRANSACTION READ ONLY` → （生产建议）独立的只读账号。
-模型只拿到「表结构文本」，拿不到连接串；生成的 SQL 完整展示、可复制、可审计。
-
-📖 **完整准备清单与运维说明见 [docs/AI-QUERY.md](docs/AI-QUERY.md)**。
+所有演示数据以 `DEMO-` 前缀标识，`DELETE /api/dev/demo-data` 可精确清除。
+该端点默认**仅 Development 环境**放行；要在演示服务器上开启，显式设置 `DemoData:Enabled=true`。
 
 ---
 
 ## 已实现功能
 
-- [x] 用户注册、登录（JWT 认证）
-- [x] RBAC 角色权限：权限目录、角色-权限配置、用户角色分配、启用/停用
-- [x] 权限变更**即时生效**（服务端每次请求按用户查库判定权限，带短缓存与代次失效）
-- [x] 统一错误响应（ProblemDetails + 业务错误码 + TraceId）
-- [x] 主数据管理：产品 / 物料 / 工序 / 工作中心（编码唯一、关键字查询、启停、权限约束）
-- [x] BOM 与工艺路线：多版本管理（同产品单一生效版本、生效版本受保护）、BOM 明细含损耗率、工序步骤含质检点
-- [x] 工单管理（创建、查询、编辑），查询条件全部下推到数据库
-- [x] 工单状态流转（草稿 → 已下达 → 生产中 → 已完成 / 已取消）
-- [x] 工单下达时按生效工艺路线展开**工序任务**，并快照 BOM/工艺路线版本
-- [x] **工序级报工**：良品 / 不良 / 报废 + 不良代码，越序报工被拒绝，全部工序完成则工单自动完成
-- [x] 工时与设备：报工记录实际工时、执行设备与返工类型；工单按标准工时加权计算整体进度
-- [x] **SN 与 WIP 过站**：批量生成 SN、进站 / 出站、不合格停留在本工序、按 SN 追溯完整流转轨迹
-- [x] 质量管理：检验单（IQC / IPQC / FQC / OQC）、定量规格自动判定、不合格处置与维修/复检闭环、不良代码 Pareto、SPC 判异
-- [x] 设备与 Andon：设备台账、状态机（故障强制填原因）、点检保养、停机 Pareto、一键呼叫与超时自动升级（SignalR 实时推送）
-- [x] 追溯：按 SN 输出「人机料法环」完整报告（含上游来料批次）+ 批次影响范围查询
-- [x] 来料批次谱系：批次入库 → IQC 判定自动回写批次准入 → SN 绑定用料（幂等扣减）→ 正反向双向追溯
-- [x] 车间大屏：`/display` 三屏自动轮播（Andon 红黄绿 / 产量与良率 / 质量与设备），超时红灯闪烁，一键全屏
-- [x] 指标体系（阶段 4）：OEE = 可用率 × 性能 × 良率、达成率、一次性合格率 FPY、不良 TOP N、停机 Pareto（时长 + 次数）
-- [x] 班次与生产日历：跨天夜班归属生产日，节假日不计入计划生产时间，全系统统一统计口径
-- [x] 报表与导出：按生产日 / 产线 / 班次下钻，CSV 导出（UTF-8 BOM，Excel 直开）+ 打印视图（浏览器另存为 PDF，无需 PDF 生成库）
-- [x] 模块间事件化（阶段 4）：集成事件契约 + Outbox 表（事务内落库 / 异步投递 / 指数退避重试），示例：检验不合格自动发起 Andon 红灯呼叫
-- [x] 工作单元修复：跨模块 DbContext 真正纳入同一事务（此前 EF 未注册 `DbContext` 基类导致 `UnitOfWorkFilter` 事务空转）
-- [x] 对外集成（阶段 4）：开放 API `/api/open/v1` 用 `X-Api-Key` 独立鉴权 + 按密钥限流（120 次/分钟）；ERP 工单下发/回读（工单号幂等）；设备采集上报经 Outbox 异步应用
-- [x] 开放 API 客户端管理：密钥只存 SHA-256 摘要、明文创建时返回一次，可单独停用与设过期
-- [x] 性能与容量（阶段 4）：`tools/perf-probe.ps1` 一键压测（种子生成 / 索引体检 / EXPLAIN / 并发分位），实测报告见 `docs/PERFORMANCE.md`
-- [x] 预聚合汇总表：`reporting.daily_shift_metrics`（生产日 + 班次），报表/看板 P95 从 1479ms 降到 16ms（约 92 倍），后台每 5 分钟滚动重算、未覆盖自动回退实时
-- [x] 主数据交换（开放 API）：产品/物料/BOM 查询与下发，物料按编码、BOM 按「产品 + 版本」幂等
-- [x] 运维可观测性：`/api/monitoring/snapshot` 暴露 Outbox 积压、预聚合新鲜度、数据库指标与告警阈值（零外部依赖）
-- [x] 主数据 CSV 导入导出（产品 / 物料 / 工序 / 工作中心，按编码 upsert）
-- [x] 并发安全的工单号生成（按日递增，数据库原子取号）
-- [x] SignalR 实时生产看板（通知在事务提交后发送）
-- [x] **智能问数（AI + 数据库）**：中文提问 → 大模型生成只读 SQL → 守卫校验 → 执行 → 表格 / 柱状 / 折线 / 饼图，SQL 全程可审计
-- [x] **智能问数的安全三层**：`SqlGuard`（白名单 + 黑名单 + 强制 LIMIT）、`SET TRANSACTION READ ONLY` + `statement_timeout`、可选独立只读账号
-- [x] **语义层**：19 张核心表的中文业务名 / 枚举取值 / 业务口径；列结构实时读 `information_schema`，不会讲错列名
-- [x] **NL2SQL 自我修复**：SQL 报错回灌模型重写（默认 2 轮），列名写错、漏软删除条件基本能自动纠回
-- [x] **一键演示数据**：`tools/seed-demo.ps1` 灌入完整 SMT 场景（3 产线 × 8 工单 × 300 SN × 检验 / 设备 / Andon），幂等且可精确清理
-- [x] **SPC 控制图前端**：均值 / ±3σ 控制限 / 规格限四线叠加，判异结论与超限点高亮
-- [x] 前端 Vue3 界面（登录、工单管理、生产看板、SN 过站、质量管理、设备与 Andon、追溯查询、主数据、报表与班次、智能问数、角色与权限、用户管理、车间大屏）
-- [x] 请求级单事务（跨模块写入原子提交）
-- [x] 健康检查、结构化日志、GitHub Actions CI
-- [x] **改进建议与迭代审阅**：持有 `iteration:suggest` 的角色可对**自己可用的功能**提修改建议（后端按该页面的鉴权权限码校验，前端只做可选项），“新增功能”建议仅管理员可提；提交后由 AI 评审写入迭代计划，**同时与已有计划做交叉对比**（冲突 / 歧义当场抛出，不拖到周末）
-- [x] **列表状态保真**：列表 / 检索类页面启用 `keep-alive` 白名单（并还原滚动位置）；问数会话与**进行中的请求**放 Pinia store —— 切页面不中断，F5 后记录仍在
-- [x] **车间大屏可读性**：顶栏显示「当前看板」名称，切换入口由三个无标签圆点改为带看板名的标签按钮
+> 完整的任务清单与验收标准在 [ROADMAP.md](ROADMAP.md)，这里只给概览。
+
+**基础**：注册/登录（JWT）、RBAC 角色权限（权限变更**即时生效**，服务端按请求查库判定）、统一错误响应（ProblemDetails + 业务错误码 + TraceId）、请求级单事务（跨模块写入原子提交）、健康检查、结构化日志、GitHub Actions CI。
+
+**主数据与生产**：产品 / 物料 / 工序 / 工作中心 + BOM 与工艺路线（多版本、同产品单一生效版本、生效版本受保护）→ 工单（状态流转、按日递增的并发安全单号）→ 下达时按生效路线展开**工序任务**并快照 BOM/工艺路线版本 → 工序级报工（良品/不良/报废 + 不良代码，越序拦截，全部工序完成自动结单）→ **SN 与 WIP 过站**（进站/出站/不合格停留/整颗完工）→ 完整流转轨迹追溯。主数据支持 CSV 导入导出。
+
+**质量 / 设备 / 追溯**：检验单（IQC/IPQC/FQC/OQC，定量规格自动判定、AQL 抽样）→ 不合格处置与维修/复检闭环 → 不良代码 Pareto、SPC 判异（前端控制图四线叠加）；设备台账 + 状态机（故障强制填原因）+ 点检保养 + 停机 Pareto + Andon 一键呼叫与**超时自动升级**（SignalR）；按 SN 输出「人机料法环」完整报告 + 批次影响范围；来料批次谱系（入库 → IQC 判定回写准入 → SN 绑定用料 → 正反向双向追溯）。
+
+**报表与集成**：OEE / 达成率 / FPY / 不良 TOP N / 停机 Pareto；报表按生产日 / 产线 / 班次下钻 + CSV 导出 + 打印视图（浏览器另存 PDF）；班次与生产日历（跨天夜班归属生产日）；预聚合汇总表（报表 P95 从 1479ms → 16ms）；模块间事件化（Outbox 表 + 指数退避重试）；开放 API `/api/open/v1`（`X-Api-Key` 独立鉴权 + 按密钥限流 120 次/分，ERP 工单下发幂等、设备采集上报、主数据交换）；运维持快照 `/api/monitoring/snapshot`；车间大屏 `/display` 三屏轮播。
+
+**AI 两个落地**：
+
+- **智能问数**：中文 → 大模型生成只读 SQL → 守卫校验 → 执行 → 表格/柱状/折线/饼图。语义层（19 张表业务注解，列结构实时读 `information_schema`）+ 自我修复（报错回灌重写）+ **三道防线**（`SqlGuard` 白名单 / `SET TRANSACTION READ ONLY` / 只读账号），SQL 全程可审计。见 [docs/AI-QUERY.md](docs/AI-QUERY.md)。
+- **改进建议 / AI 自迭代**：持 `iteration:suggest` 的角色可对**自己可用的功能**提修改建议（后端按该页面权限码再校验），“新增功能”仅管理员可提；AI 评审并写入迭代计划，同时与已有计划**交叉对比**（冲突/歧义当场抛出）。周期：周一~周四提建议 → 周五冻结+审阅 → 周五 24:00 结算（低风险沉默放行，中/高风险沉默顺延）→ 周六自动执行、全量测试通过即合并上线。宿主只做入口与权限闸门，数据全在独立的 AI 迭代服务里。见 [docs/ITERATION.md](docs/ITERATION.md)。
+
+**交互细节**：列表/检索页 `keep-alive` 白名单（含滚动位置还原）；问数会话与进行中的请求放 Pinia store（切页面不中断，F5 后仍在）；大屏顶栏显示当前看板名。
 
 ---
 
-## AI 自迭代（改进建议 → 迭代计划 → 自动执行）
-
-> 状态：**试验项目**。宿主侧接入与整套周期规则已在线上跑通（提建议 / 评审 / 交叉对比 / 冻结 / 审阅 / 结算 / 建任务 / 执行）。
-
-QiaoMES 在这件事里**只做入口与权限闸门**：建议、迭代计划、审阅留痕、执行审计全部在一个**独立的 AI 迭代服务**里
-（仓库 [`qiao33128/ai-iteration`](https://github.com/qiao33128/ai-iteration)，私有）。宿主不存这些数据 ——
-再存一份必然出现两份真相；服务的管理员密钥由**宿主服务端代持，不下发浏览器**。
-
-**周期节奏：**
-
-| 时间 | 发生什么 |
-|---|---|
-| 周一 ~ 周四 | 提建议。AI 评审 + 与已有计划交叉对比：干净才合并，**有冲突 / 歧义当场抛出** |
-| **周五 00:00** | 冻结收集，留一整天给管理员审阅（批准 / 否决 / 提意见） |
-| 周五 24:00 | 结算：**低风险沉默即放行；中 / 高风险沉默即顺延**（有意见、或报过冲突的条目一律顺延） |
-| **周六 08:00** | 自动执行：AI 在工作区改代码 → 跑全量测试 →**判据全过就自动合并 main** → GitHub Actions 构建并部署上线 |
-
-**配置**（留空则功能关闭，页面显示「迭代服务还没配置」的明确提示，不会报错）：
-
-```bash
-# docker-compose.deploy.yml 已透传这两个键；值放服务器 /root/qiaomes/.env
-ITERATION_BASE_URL=http://ai-iteration:8080   # 与服务同行容器网络，无需对外暴露端口
-ITERATION_ADMIN_KEY=<与服务端 Admin__ApiKey 一致>
-```
-
-**权限**：`iteration:suggest`（提修改建议，主管角色默认持有）/ `iteration:manage`（提“新增功能”建议 + 审阅计划，仅管理员）。
-
-**安全边界（刻意的取舍）**：
-
-- 自动合并只做**快进式推送、绝不 `--force`** —— main 若这期间前进过就如实报错转人工，宁可这次改动停在分支上，也不覆盖主线
-- 执行判据是硬性的：编译通过 + **全量测试全绿** + 无越界改动（超出声明影响面即失败）+ 无残留未提交文件
-- 执行环境与生产隔离在资源上（容器限内存 / CPU + 独立 swap），构建再重也不会把生产拖死
-
-**已知限制**：① 执行跑在 2 vCPU / 896MB + swap 的机器上，**慢**（首次还要冷 NuGet 缓存，之后走持久化缓存）；② 规划器看不到代码仓库，`impact.files` 有时为空，会让“越界校验”对那类条目不生效。
-
 ## 架构说明
 
-采用**模块化单体（Modular Monolith）**架构：每个业务模块内部按 Clean Architecture 分层（Domain / Application / Infrastructure / Api），模块之间边界清晰，未来可平滑拆分为微服务。
+采用**模块化单体（Modular Monolith）**：每个业务模块内部按 Clean Architecture 分层（Domain / Application / Infrastructure / Api），模块间边界清晰，未来可平滑拆分为微服务。
 
 几条不变量：
 
@@ -311,6 +323,21 @@ ITERATION_ADMIN_KEY=<与服务端 Admin__ApiKey 一致>
 3. **业务失败用 `Result`/`Error` 表达**，异常只用于不可恢复的技术故障。
 4. **横切关注点集中在 `BuildingBlocks/Infrastructure`**：事务、异常、日志、授权只在主机实现一次。
 5. **子实体必须显式持久化**：EF 对「通过导航集合发现、主键已有值」的实体会判定为 `Modified`，因此新增关联一律通过仓储 `Add*` 方法显式 `Add`。
+
+---
+
+## 文档索引
+
+| 文档 | 内容 |
+|---|---|
+| [ROADMAP.md](ROADMAP.md) | 阶段计划、验收标准、变更记录（**唯一规划源**） |
+| [docs/AI-QUERY.md](docs/AI-QUERY.md) | 智能问数：开箱即用的能力、你还需要准备什么、安全设计、常见问题 |
+| [docs/ITERATION.md](docs/ITERATION.md) | 改进建议 / AI 迭代：**配置填在哪里**、报错对照表、权限、周期节奏 |
+| [docs/CICD.md](docs/CICD.md) | 自动部署：镜像仓、仓库 Secrets/Variables、服务器上会被改成什么样、回滚、排错 |
+| [docs/PERFORMANCE.md](docs/PERFORMANCE.md) | 性能实测报告与优化路径 |
+| [.env.example](.env.example) | 全部可配置环境变量模板 |
+
+---
 
 ## 技术支持与联系
 

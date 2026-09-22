@@ -76,10 +76,14 @@ jobs:
         env:
           REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
           REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+          JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
         run: |
           missing=""
           [ -n "$REGISTRY_USERNAME" ] || missing="$missing REGISTRY_USERNAME"
           [ -n "$REGISTRY_PASSWORD" ] || missing="$missing REGISTRY_PASSWORD"
+          # 生产编排把 Jwt__SecretKey 声明为必填（${JWT_SECRET_KEY:?}），漏配会让服务器上的 compose 直接拒绝启动。
+          # 在这里提前拦下来，报错信息比服务器上的 DEPLOY-FAIL-UP 清楚得多。
+          [ -n "$JWT_SECRET_KEY" ] || missing="$missing JWT_SECRET_KEY"
           if [ -n "$missing" ]; then
             echo "::error::缺少仓库 Secrets：$missing —— 请先按 docs/CICD.md 第 2.1 / 2.2 节配置后再重新运行"
             {
@@ -178,6 +182,10 @@ jobs:
           ASSISTANT_LLM_BASE_URL: ${{ vars.ASSISTANT_LLM_BASE_URL || 'https://api.deepseek.com/v1' }}
           ASSISTANT_LLM_MODEL: ${{ vars.ASSISTANT_LLM_MODEL || 'deepseek-chat' }}
           ASSISTANT_LLM_API_KEY: ${{ secrets.ASSISTANT_LLM_API_KEY }}
+
+          # 改进建议 / AI 迭代服务（留空 = 该功能关闭，页面给明确提示，见 docs/ITERATION.md）
+          ITERATION_BASE_URL: ${{ vars.ITERATION_BASE_URL }}
+          ITERATION_ADMIN_KEY: ${{ secrets.ITERATION_ADMIN_KEY }}
 
           RAW_COMPOSE_URL: https://raw.githubusercontent.com/${{ github.repository }}/${{ github.event.repository.default_branch }}/docker-compose.deploy.yml
           PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL || 'https://mes.qiaoqiaoqiao.me' }}

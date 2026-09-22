@@ -83,10 +83,11 @@ GitHub Actions
 | `ALIYUN_AK` / `ALIYUN_SK` | ✅ | 阿里云 AccessKey。**建议建 RAM 子用户**（授权 `AliyunECSRunCommand` 等命令执行相关权限即可），不要用主账号 |
 | `ALIYUN_INSTANCE_ID` | ✅ | 轻量应用服务器实例 ID：`7defc9fc6f3140b38a26336030b3c487` |
 | `REGISTRY` / `REGISTRY_NAMESPACE` / `REGISTRY_USERNAME` / `REGISTRY_PASSWORD` | ✅ | 见 2.1 |
-| `JWT_SECRET_KEY` | ✅ | ≥32 字符的随机串（**改了会让所有人重新登录**） |
+| `JWT_SECRET_KEY` | ✅ **强制** | ≥32 字符的随机串（**改了会让所有人重新登录**；问数页已保存的模型密钥也会失效，需重填）。🔴 没配就没有兜底：生产编排用它做 `${JWT_SECRET_KEY:?}` 必填校验，CI 预检也会先拦一次，服务器上的 compose 会直接拒绝启动（**安全**：旧容器继续跑，不会中断线上） |
 | `ASSISTANT_LLM_API_KEY` | 可空 | 智能问数的大模型密钥；不配就是"未配置模型"状态（页面会给提示，功能不报错） |
 | `POSTGRES_PASSWORD` | ⚠️ 建议**不配** | 部署脚本只在 CI 提供了值时才覆盖服务器 `.env`。**一旦配错会让 API 连不上已初始化的数据库卷** |
 | `SMOKE_USER` / `SMOKE_PASSWORD` | 可空 | 冒烟测试账号，默认 `admin` / `Admin123!` |
+| `ITERATION_ADMIN_KEY` | 可空 | AI 迭代服务的管理员密钥，必须与服务端 `Admin__ApiKey` 一致。不配则「改进建议」功能关闭（页面给明确提示，不报错） |
 
 🔴 **`POSTGRES_PASSWORD` 为什么危险**：PostgreSQL 的密码在**数据卷首次初始化时**就写死了。
 如果 CI 把一个新值推上去，API 会用新密码连一个只认旧密码的库 → 连接失败、容器起不来。
@@ -102,6 +103,7 @@ GitHub Actions
 | `ASSISTANT_LLM_BASE_URL` | `https://api.deepseek.com/v1` | 任何 OpenAI 兼容端点 |
 | `ASSISTANT_LLM_MODEL` | `deepseek-chat` | |
 | `DEMO_DATA_ENABLED` | `false` | 设为 `true` 才能在服务器上用 `tools/seed-demo.ps1` 灌演示数据 |
+| `ITERATION_BASE_URL` | 空（= 功能关闭） | AI 迭代服务地址。与宿主同容器网络时填服务名，如 `http://ai-iteration:8080`；**详细说明见 [ITERATION.md](ITERATION.md)** |
 
 > Variables 不是密钥，改完直接生效，不用动 workflow。
 
@@ -126,7 +128,8 @@ GitHub Actions
 |---|---|
 | `docker-compose.deploy.yml` | 每次部署由 CI **内联下发**（内容取自当次提交的仓库文件），与仓库强一致。由 CI 维护，别手工改 |
 | `.env` | 部署脚本**合并写入**：只覆盖本次显式提供的键，其余保留原值 |
-| `.env`（示例键） | `QIAOMES_API_IMAGE` / `QIAOMES_WEB_IMAGE` / `JWT_SECRET_KEY` / `POSTGRES_PASSWORD` / `WEB_PORT` / `CORS_ORIGINS` / `GATEWAY_NETWORK` / `ASSISTANT_*` |
+| `.env`（示例键） | `QIAOMES_API_IMAGE` / `QIAOMES_WEB_IMAGE` / `JWT_SECRET_KEY` / `POSTGRES_PASSWORD` / `WEB_PORT` / `CORS_ORIGINS` / `GATEWAY_NETWORK` / `ASSISTANT_*` / `ITERATION_*` —— 完整模板见仓库根 [`.env.example`](../.env.example) |
+| `config/` | **迭代服务配置目录**：挂到容器的 `/app/config`，页面上配的地址与管理员密钥写在 `config/iteration.json`。部署脚本会创建并 `chown 1654`（容器以非 root 运行）。⚠️ **换机器 / 重装时要一并备份** —— 它不在数据库备份里 |
 | `docker-compose.tcr.yml.bak` | 旧文件名（首次部署时自动改名留底） |
 | `.last_api_image` / `.last_web_image` | 上一次的镜像地址，回滚时参考 |
 | `/root/qiaomes_deploy.log` | 部署日志（排查第一现场） |
@@ -192,10 +195,15 @@ docker compose -f docker-compose.deploy.yml up -d --force-recreate api web
 | 方式 | 命令 | 用途 |
 |---|---|---|
 | 本地构建 | `docker compose up -d --build` | 开发机自验 |
-| 手工推镜像 + 服务器拉 | `docker build -t <reg>/... && docker push` + 服务器 `compose pull && up -d` | 应急 / 无 CI 时 |
+| **一条命令（幂等脚本）** | `bash deploy/one-shot.sh`（服务器上没有仓库时先 `curl` 把脚本拉下来，见 `deploy/one-shot.sh` 头部注释） | **应急 / 换机器 / 没有 CI**；把准备 + 拉取 + 启动 + 健康检查全做完，可反复执行 |
+| 手工推镜像 + 服务器拉 | `docker build -t <reg>/... && docker push` + 服务器 `compose pull && up -d` | 手工控制每一步 |
 | **CI/CD（本文）** | push `main` | 日常发布 |
 
-三种方式共用同一份 `docker-compose.deploy.yml` 与同一套 `.env` 约定，不会打架。
+四种方式共用同一份 `docker-compose.deploy.yml` 与同一套 `.env` 约定，不会打架。
+
+> `deploy/one-shot.sh` 与 CI 的差异只在「谁提供配置」：CI 从仓库 Secrets 合并写 `.env`、编排文件由 CI 内联下发；
+> 脚本则**自动补齐** `.env`（缺 `JWT_SECRET_KEY` 就生成随机串；数据库密码只在**全新库**上生成 —— 卷已存在时绝不凭空造新密码）、
+> 建好 external 网络，再 `pull` + `up -d --wait` + 健康检查。它**只 pull / up，不执行任何数据库脚本**。
 
 ---
 
@@ -203,6 +211,17 @@ docker compose -f docker-compose.deploy.yml up -d --force-recreate api web
 
 - `ALIYUN_AK/SK` 目前既存在本机 `mcp.json`、也存在服务器 `~/.acme.sh/account.conf`，
   **建议换成一个 RAM 子用户**（仅授予命令执行 + DNS 解析所需权限），三处同步替换。
-- 数据库 `5432` 端口在 compose 里是**对外暴露**的（`0.0.0.0:5432`）。
-  如果不做外部直连，建议改成 `127.0.0.1:5432:5432` 或用防火墙收紧。
+- 🔴 **生产默认密钥已从配置里移除，改为「漏配就起不来」**：
+  `appsettings.Production.json` 不再带 `Jwt:SecretKey` 与含 `qiaomes_dev` 的连接串（放进去等于把弱口令随镜像发出去）。
+  现在 `JWT_SECRET_KEY` / `ConnectionStrings__DefaultDb` 必须由环境变量提供，否则 API 启动时**当场报错并把缺什么说清楚**
+  （而不是抛 `IDX10703` 或"连接串为空"）。⚠️ **确认仓库 Secrets 里已有 `JWT_SECRET_KEY` 再部署**，否则新版本会起不来。
+  另外，若密钥仍是内置占位值（`QiaoMES_*` / 含 `Change_Me`），生产环境会打一条醒目警告但不阻断启动 ——
+  本地 `docker compose up` 依赖这个兜底值，一刀切会让它直接起不来。
+- 数据库 `5432` 端口**默认只绑回环**（`${POSTGRES_BIND:-127.0.0.1}:5432:5432`，此前是 `0.0.0.0` ——
+  这台机器有公网 IP，等于把库暴露在扫描面上）。容器内互连走 `qiaomes-net` 的服务名 `postgres`，不受影响；
+  需要在服务器上直连时用 `docker exec -it qiaomes-postgres psql -U qiaomes -d qiaomes`。
+  ⚠️ **服务器上不要设 `POSTGRES_BIND`**。
+  它存在的唯一理由是本机：**Docker Desktop（Windows/macOS）只代理 `0.0.0.0` 的端口映射**，
+  绑 `127.0.0.1` 时端口只存在于 WSL 虚拟机内部，Windows 宿主连不上（`dotnet run` 会报 connection refused）——
+  所以 `tools/start-local.ps1` 会在本机 `.env` 里写 `POSTGRES_BIND=0.0.0.0`。
 - 部署只跑 `pull / up -d`，**不执行任何数据库脚本**；迁移由 API 启动时自动应用。

@@ -21,6 +21,9 @@
 #   WEB_PORT（对外端口，默认 8080；本机与服务共存故用 8090）
 #   CORS_ORIGINS / GATEWAY_NETWORK
 #   DEMO_DATA_ENABLED / ASSISTANT_ENABLED / ASSISTANT_LLM_* / ASSISTANT_DB_CONNECTION
+#   ITERATION_BASE_URL / ITERATION_ADMIN_KEY  （留空 = 改进建议功能关闭，见 docs/ITERATION.md）
+#
+# 完整可复制模板见仓库根目录 `.env.example`。
 #
 # 自动部署见 `.github/workflows/deploy.yml` + `deploy/gh_deploy_aliyun.py`，说明见 `docs/CICD.md`。
 # ============================================================
@@ -37,7 +40,16 @@ services:
       POSTGRES_DB: qiaomes
       TZ: Asia/Shanghai
     ports:
-      - "5432:5432"
+      # 🔴 默认只绑回环（服务器上就该这样）：这台机器有公网 IP，绑 0.0.0.0
+      # 等于把数据库暴露在公网扫描面上。容器之间走 qiaomes-net 用服务名 postgres 连接，不受影响；
+      # 需要在服务器上直连时用 `docker exec -it qiaomes-postgres psql -U qiaomes -d qiaomes`。
+      #
+      # ⚠️ 为什么做成变量：**Docker Desktop（Windows/macOS）只代理 0.0.0.0 的端口映射** ——
+      # 绑 127.0.0.1 时那个端口只存在于 WSL 虚拟机内部，Windows 宿主连不上
+      # （实测：本机 `dotnet run` 会报 `Failed to connect to 127.0.0.1:5432`）。
+      # 所以本机跑这份编排时，由 tools/start-local.ps1 在 .env 里写 POSTGRES_BIND=0.0.0.0 ——
+      # 那台机器是你的开发机、不是公网服务器，可以接受。
+      - "${POSTGRES_BIND:-127.0.0.1}:5432:5432"
     volumes:
       # ⚠️ 卷名不可改：改成别的名字会挂到一个空库上，看起来像"数据全丢了"
       - qiaomes_pgdata:/var/lib/postgresql/data
@@ -68,8 +80,11 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       # 全部模块共用同一连接，才能把跨模块写入放进同一个事务
       ConnectionStrings__DefaultDb: Host=postgres;Port=5432;Database=qiaomes;Username=qiaomes;Password=${POSTGRES_PASSWORD:-qiaomes_dev}
-      # 生产环境务必通过环境变量传入自己的密钥（至少 32 字符）
-      Jwt__SecretKey: ${JWT_SECRET_KEY:-QiaoMES_Prod_Secret_Change_Me_At_Least_32_Chars_0123456789}
+      # 🔴 必填（`:?` 表示未设置就让 compose 直接拒绝启动，并打印等号后面那句人话）。
+      # 此前这里是 `${JWT_SECRET_KEY:-内置默认值}` —— 意味着漏配 Secret 时**生产会静默使用一个公开的密钥**，
+      # 任何人都能用它伪造令牌，而且从日志里完全看不出来。宁可部署失败（旧容器继续跑），也不要这种"成功"。
+      # 本地 `docker-compose.yml` 仍保留兜底值，那是为了让 `docker compose up -d --build` 开箱即用。
+      Jwt__SecretKey: ${JWT_SECRET_KEY:?未设置 JWT_SECRET_KEY：请在服务器 .env 或仓库 Secrets 里配置一个不少于 32 字符的随机串（模板见 .env.example）}
       Jwt__Issuer: QiaoMES
       Jwt__Audience: QiaoMES.Api
       # 前端对外访问地址（同源部署其实用不到，但直连 API 调试/脚本会用到）
@@ -87,6 +102,12 @@ services:
       # 留空则该功能显示「迭代服务还没配置」的明确提示，不会报错 —— 功能默认关闭是有意的。
       Iteration__BaseUrl: ${ITERATION_BASE_URL:-}
       Iteration__AdminKey: ${ITERATION_ADMIN_KEY:-}
+    volumes:
+      # 「迭代服务配置」页保存的文件落在这里（容器内 /app/config）。
+      # ⚠️ 必须挂宿主目录：写容器可写层的话，每次 up -d --force-recreate 都会被丢掉。
+      # ⚠️ 宿主目录要能被容器用户（UID 1654）写 —— 部署脚本会创建并 chown，
+      #    手工部署时：mkdir -p /root/qiaomes/config && chown 1654:1654 /root/qiaomes/config
+      - ./config:/app/config
     # 不占用宿主机端口：部署脚本用 `docker inspect` 拿到容器 IP 后直接探 8080（见 deploy/gh_deploy_aliyun.py）
     expose:
       - "8080"
@@ -102,6 +123,16 @@ services:
       - api
     ports:
       - "${WEB_PORT:-8080}:80"
+    # nginx:alpine 自带 busybox wget（没有 curl），所以用 wget 探活。
+    # 这条 healthcheck 专门盯一类踩过的坑：镜像里的 nginx entrypoint 脚本卡住时，
+    # 容器是 Up 的、端口却无人应答 —— 只看 docker ps 会以为「部署成功」。
+    # （aspnet 运行时镜像里 curl/wget 都没有，所以 api 侧只能从宿主机探容器 IP，见 deploy/gh_deploy_aliyun.py）
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 10s
     networks:
       - qiaomes-net
       # 与看板站网关（kanban-caddy）同网，便于用域名 + HTTPS 反向代理到本服务；

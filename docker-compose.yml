@@ -21,6 +21,10 @@ services:
       POSTGRES_DB: qiaomes
       TZ: Asia/Shanghai
     ports:
+      # 这份编排只用于**开发机**（本机 `dotnet run` 需要从宿主连 localhost:5432）。
+      # 🔴 必须只写端口（= 0.0.0.0），**不能**写 127.0.0.1：Docker Desktop 只代理 0.0.0.0 的映射，
+      # 绑 127.0.0.1 时端口只存在于 WSL 虚拟机内部，Windows 宿主连不上（实测 connection refused）。
+      # 服务器请用 docker-compose.deploy.yml —— 那份默认绑 127.0.0.1，不对公网开放。
       - "5432:5432"
     volumes:
       - qiaomes_pgdata:/var/lib/postgresql/data
@@ -63,6 +67,17 @@ services:
       Assistant__Llm__Model: ${ASSISTANT_LLM_MODEL:-deepseek-chat}
       # 生产环境强烈建议指向只读账号；留空则复用 DefaultDb（靠 READ ONLY 事务兜底）
       Assistant__ConnectionString: ${ASSISTANT_DB_CONNECTION:-}
+      # 改进建议 / 迭代审阅：指向 AI 迭代服务。留空则该功能显示「迭代服务还没配置」的明确提示，不会报错。
+      # 本机自己跑迭代服务时用 http://host.docker.internal:8xxx（容器里 localhost 指容器自身，不是宿主机）；
+      # 两个服务在同一个 compose 网络里则用服务名，如 http://ai-iteration:8080。
+      # 与部署版（docker-compose.deploy.yml）保持一致，否则本地开发会配不了这一项。
+      Iteration__BaseUrl: ${ITERATION_BASE_URL:-}
+      Iteration__AdminKey: ${ITERATION_ADMIN_KEY:-}
+    volumes:
+      # 「迭代服务配置」页保存的文件落在这里（容器内 /app/config）。
+      # 挂宿主目录而不是写容器可写层：不然每次 up -d --force-recreate 都会被丢掉。
+      # 🔴 这个目录里有管理员密钥，已在 .gitignore 里排除，别提交。
+      - ./config:/app/config
     expose:
       - "8080"
     networks:

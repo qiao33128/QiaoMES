@@ -1,5 +1,7 @@
 # ---------- 构建阶段：Node 构建 Vue 静态文件 ----------
-FROM node:22-alpine AS build
+# 🔴 这里的 Node 版本必须与 .github/workflows/ci.yml 的 node-version 保持一致（当前都是 20）。
+# 两处不一致会出现「CI 构建通过、镜像里构建失败」（或反之）这类最难查的问题。
+FROM node:20-alpine AS build
 WORKDIR /app
 
 # 复制依赖清单并安装

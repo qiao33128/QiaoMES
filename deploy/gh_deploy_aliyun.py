@@ -35,7 +35,10 @@ QIAOMES_API_IMAGE / QIAOMES_WEB_IMAGE              （含 registry 与 tag 的�
 JWT_SECRET_KEY / POSTGRES_PASSWORD / WEB_PORT / CORS_ORIGINS / GATEWAY_NETWORK
 DEMO_DATA_ENABLED
 ASSISTANT_ENABLED / ASSISTANT_LLM_BASE_URL / ASSISTANT_LLM_API_KEY / ASSISTANT_LLM_MODEL / ASSISTANT_DB_CONNECTION
+ITERATION_BASE_URL / ITERATION_ADMIN_KEY
 RAW_COMPOSE_URL / PUBLIC_BASE_URL / SMOKE_USER / SMOKE_PASSWORD
+
+完整变量清单与模板见仓库根目录 `.env.example`；迭代服务配置见 docs/ITERATION.md。
 """
 
 import base64
@@ -61,7 +64,7 @@ docker inspect qiaomes-api --format '{{.Config.Image}}' > "$DIR/.last_api_image"
 docker inspect qiaomes-web --format '{{.Config.Image}}' > "$DIR/.last_web_image" 2>/dev/null || true
 cat "$DIR/.last_api_image" 2>/dev/null || true
 
-echo "=== [2/7] 合并写入 .env（只覆盖本次提供的键）"
+echo "=== [2/7] 合并写入 .env（只覆盖本次提供的键）+ 准备配置目录"
 NEW=/tmp/qiaomes.env.new
 rm -f "$NEW"
 base64 -d > "$NEW" <<'QIAOMES_ENV_B64'
@@ -82,6 +85,12 @@ fi
 chmod 600 "$ENVF"
 echo "--- .env 生效内容（密码只显示键名）"
 sed 's/=.*/=<hidden>/' "$ENVF"
+
+# 「改进建议 → 迭代服务配置」保存的文件落在 $DIR/config（编排把它挂到容器的 /app/config）。
+# 容器以非 root 用户（UID 1654）运行 → 宿主目录必须让它可写；
+# chown 失败就退化成 777（$DIR 在 /root 下，只有 root 能进入，不会真的暴露给别的用户）。
+mkdir -p "$DIR/config"
+chown 1654:1654 "$DIR/config" 2>/dev/null || chmod 777 "$DIR/config"
 
 echo "=== [3/7] 刷新编排文件"
 if [ -n "__COMPOSE_B64__" ]; then
@@ -194,6 +203,8 @@ ENV_KEYS = [
     "ASSISTANT_LLM_API_KEY",
     "ASSISTANT_LLM_MODEL",
     "ASSISTANT_DB_CONNECTION",
+    "ITERATION_BASE_URL",
+    "ITERATION_ADMIN_KEY",
 ]
 
 _client = None

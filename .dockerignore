@@ -1,0 +1,51 @@
+# ============================================================
+# 构建上下文裁剪（context 是仓库根目录，两个 Dockerfile 共用）
+#
+# 不写这个文件的话，下面这些东西会被**全部打包发给 build daemon**：
+#   frontend/node_modules（1 万+ 文件）、src/**/bin|obj（1 千+ dll）、.git、本地日志
+# 表现就是「什么都没改，docker build 却要等很久」以及镜像层意外变大。
+#
+# frontend/Dockerfile 里 `COPY frontend/ ./` 需要的是源码（src / package*.json / *.config.js…），
+# node_modules 由容器内 `npm ci` 重新装；API 侧 bin/obj 由容器内 `dotnet restore/publish` 重新生成。
+# 所以这里排除它们不会影响构建结果。
+# ============================================================
+
+# ---------- .NET 构建产物 ----------
+**/bin/
+**/obj/
+.vs/
+*.user
+*.suo
+
+# ---------- 前端依赖与产物 ----------
+**/node_modules/
+frontend/dist/
+
+# ---------- 版本控制 / 编辑器 ----------
+.git/
+.git-blame-ignore-revs
+.gitignore
+.idea/
+.vscode/
+*.swp
+
+# ---------- 本地日志（每次构建都在变，留着会让层缓存失效）----------
+*.log
+
+# ---------- 文档与工具（镜像里用不到，前端 npm ci 只认 package*.json）----------
+docs/
+tools/
+*.md
+LICENSE
+
+# ---------- 本地编排与密钥（绝不进镜像）----------
+docker-compose*.yml
+.env
+.env.local
+.env.example
+backup/
+
+# 迭代服务配置（里面有管理员密钥）—— 绝不送进构建上下文：
+# 即使 Dockerfile 不 COPY 它，上下文也会被整体打包发给 build daemon
+config/
+**/config/
