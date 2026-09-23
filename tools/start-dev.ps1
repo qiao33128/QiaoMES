@@ -199,17 +199,18 @@ finally {
 # ---------- 5. 健康检查 ----------
 if ($WaitHealthySeconds -gt 0) {
     Write-Log "等健康检查（首次要在空库上跑全量迁移，最多 $WaitHealthySeconds 秒）"
+    # 🔴 必须走**发布端口**（8092 → web 的 nginx → 反代到 api 的 /health/），**不要探容器 IP**：
+    # Docker Desktop（Windows）的容器 IP 在 WSL 虚拟机里，Windows 宿主路由不到 —— 探它必然超时，
+    # 于是把"其实已经起好了"判成失败（这条坑 MEMORY 里记着）。nginx.conf 里那句
+    # `location /health/ { proxy_pass http://api:8080; }` 正是为这种探活准备的。
     $deadline = (Get-Date).AddSeconds($WaitHealthySeconds)
     $ok = $false
     while ((Get-Date) -lt $deadline) {
-        $apiIp = (& docker inspect qiaomes-dev-api --format '{{range .NetworkSettings.Networks}}{{println .IPAddress}}{{end}}' 2>$null | Select-Object -First 1)
-        if ($apiIp) {
-            try {
-                $r = Invoke-WebRequest "http://${apiIp}:8080/health/ready" -UseBasicParsing -TimeoutSec 5
-                if ($r.StatusCode -eq 200) { $ok = $true; break }
-            }
-            catch { }
+        try {
+            $r = Invoke-WebRequest "http://127.0.0.1:$DevPort/health/ready" -UseBasicParsing -TimeoutSec 6
+            if ($r.StatusCode -eq 200) { $ok = $true; break }
         }
+        catch { }
         Start-Sleep -Seconds 6
     }
     if (-not $ok) {
