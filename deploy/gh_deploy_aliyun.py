@@ -98,6 +98,28 @@ chmod 600 "$ENVF"
 echo "--- .env 生效内容（密码只显示键名）"
 sed 's/=.*/=<hidden>/' "$ENVF"
 
+# 🔴 JWT 密钥如果还停在**内置占位值**（或压根没值），这次部署就换成随机串 —— 一次性的自愈，之后不再动。
+# 为什么必须换：占位串是公开的（写在 .env.example 与编排历史里），任何人都能用它伪造令牌，
+# 而"生产静默使用公开密钥"从日志里完全看不出来。为什么放在这里而不是 CI：
+# CI 看不到服务器 .env 的现值；这里是唯一能同时看到现值、又能安全改它的地方。
+# 换掉的代价（docs/CICD.md 里也写着）：所有人重新登录一次；问数页已保存的模型密钥需重填（由该密钥派生）。
+cur_jwt=$(grep -E '^JWT_SECRET_KEY=' "$ENVF" | tail -1 | cut -d= -f2-)
+if [ -z "$cur_jwt" ] || printf '%s' "$cur_jwt" | grep -qE '^(QiaoMES_|.*Change_Me)'; then
+  NEW_JWT=$(head -c 48 /dev/urandom | base64 | tr -d '\n=+/' | cut -c1-48)
+  tmp="$(mktemp)"
+  grep -v '^JWT_SECRET_KEY=' "$ENVF" > "$tmp" || true
+  mv "$tmp" "$ENVF"
+  printf 'JWT_SECRET_KEY=%s\n' "$NEW_JWT" >> "$ENVF"
+  chmod 600 "$ENVF"
+  if [ -z "$cur_jwt" ]; then
+    echo "🔴 .env 里没有 JWT_SECRET_KEY —— 已生成随机密钥。"
+  else
+    echo "🔴 JWT_SECRET_KEY 仍是内置占位值（长度 ${#cur_jwt}）—— 已换成随机密钥。"
+  fi
+  echo "   影响：所有人需重新登录；问数页已保存的模型密钥需重填。"
+  echo "   想让密钥由 CI 统一管理：在仓库 Secrets 里配 JWT_SECRET_KEY（下次部署会把值写进 .env）。"
+fi
+
 # 「改进建议 → 迭代服务配置」保存的文件落在 $DIR/config（编排把它挂到容器的 /app/config）。
 # 容器以非 root 用户（UID 1654）运行 → 宿主目录必须让它可写；
 # chown 失败就退化成 777（$DIR 在 /root 下，只有 root 能进入，不会真的暴露给别的用户）。

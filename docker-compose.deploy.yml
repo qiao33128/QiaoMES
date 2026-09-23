@@ -187,12 +187,13 @@ services:
       retries: 5
       start_period: 30s
     ports:
-      # 🔴 保留对外映射，是为了让开发机上的 Worker 能租任务（SSH 被公司网络阻断，只能走公网）。
-      # 代价必须说清：这个服务的接口里有几个是**不带鉴权**的（POST /api/tasks、POST /api/workspaces），
-      # 暴露在公网等于任何人都能建任务/注册工作区。不想暴露就改成
-      # "127.0.0.1:${AI_ITERATION_PORT:-8091}:8080"（本机自用没问题），但那样 Worker 也连不上，
-      # 需要另给 Worker 通路（例如经网关反代 + 只放行特定路径）。
-      - "${AI_ITERATION_PORT:-8091}:8080"
+      # 🔴 只绑回环。此前是 `8091:8080`（等价 0.0.0.0）—— 这台机器有公网 IP，
+      # 等于把自迭代服务的接口摊在公网扫描面上。容器之间走 `qiaomes-net` 用服务名
+      # `ai-iteration` 访问，不受影响（QiaoMES 就是这么连它的）。
+      # 需要从外面连（例如开发机上的 AiIteration.Worker 要租任务）时**别改回 0.0.0.0**：
+      # 走网关反代（Caddy + HTTPS + 路径前缀），或临时改这一行、用完改回来。
+      # 同时 AI迭代 侧已给免鉴权的写接口（POST /api/tasks、POST /api/workspaces）补上了管理员密钥校验。
+      - "127.0.0.1:${AI_ITERATION_PORT:-8091}:8080"
     networks:
       - qiaomes-net
 

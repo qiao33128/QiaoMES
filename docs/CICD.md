@@ -83,7 +83,7 @@ GitHub Actions
 | `ALIYUN_AK` / `ALIYUN_SK` | ✅ | 阿里云 AccessKey。**建议建 RAM 子用户**（授权 `AliyunECSRunCommand` 等命令执行相关权限即可），不要用主账号 |
 | `ALIYUN_INSTANCE_ID` | ✅ | 轻量应用服务器实例 ID：`7defc9fc6f3140b38a26336030b3c487` |
 | `REGISTRY` / `REGISTRY_NAMESPACE` / `REGISTRY_USERNAME` / `REGISTRY_PASSWORD` | ✅ | 见 2.1 |
-| `JWT_SECRET_KEY` | ✅ **强制** | ≥32 字符的随机串（**改了会让所有人重新登录**；问数页已保存的模型密钥也会失效，需重填）。🔴 没配就没有兜底：生产编排用它做 `${JWT_SECRET_KEY:?}` 必填校验，CI 预检也会先拦一次，服务器上的 compose 会直接拒绝启动（**安全**：旧容器继续跑，不会中断线上） |
+| `JWT_SECRET_KEY` | 可空（**部署脚本会自愈**） | ≥32 字符的随机串。🔴 服务器 `.env` 里**没有值、或还停在内置占位值**（`QiaoMES_*` / 含 `Change_Me`）时，部署脚本第 2 步会**当场换成随机串**并把影响打进日志 —— 一次性的自愈，之后不再动。占位串是公开的（写在 `.env.example` 与编排历史里），任何人都能用它伪造令牌，而"生产静默使用公开密钥"从日志里完全看不出来。**换掉的代价**：所有人重新登录一次；问数页已保存的模型密钥需重填（由该密钥派生）。想让密钥由 CI 统一管理：在仓库 Secrets 里配 `JWT_SECRET_KEY`（部署时会写进 `.env`，覆盖服务器现值） |
 | `ASSISTANT_LLM_API_KEY` | 可空 | 智能问数的大模型密钥；不配就是"未配置模型"状态（页面会给提示，功能不报错） |
 | `POSTGRES_PASSWORD` | ⚠️ 建议**不配** | 部署脚本只在 CI 提供了值时才覆盖服务器 `.env`。**一旦配错会让 API 连不上已初始化的数据库卷** |
 | `SMOKE_USER` / `SMOKE_PASSWORD` | 可空 | 冒烟测试账号，默认 `admin` / `Admin123!` |
