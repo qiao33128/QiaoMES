@@ -1,29 +1,30 @@
-name: Deploy (dev 开发环境)
+name: Deploy (dev 候选版本)
 
 # ============================================================
 # 分支 = 环境：
-#   push `dev`  → 本工作流：测试 → 构建并推送 `:dev` 镜像 → 部署**开发环境**（:8092，独立库/网络/密钥）
-#   push `main` → Deploy 工作流：同样的链路 → 部署**生产**（:8090）
+#   push `dev`  → 本工作流：测试 → 构建并推送 `:dev` 镜像（**只到这里**）
+#   push `main` → Deploy 工作流：同样的链路 → 部署**生产**
 #
-# 为什么这么分：AI 自迭代改完代码**只推 `dev`**（AI迭代 侧的 Scheduler:MergeTargetBranch=dev，
-# 代码里还有一道拒绝 main/master 的闸门）。到这里跑完自动测试并部署开发环境之后，
-# **需求方先看真实效果**；确认没问题再人工把 dev 同步到 main，才动生产。
-# 也就是：`dev` = 候选版本 + 自动测试闸门；`main` = 已确认版本。
-# 完整说明见 docs/BRANCHING.md。
+# 🔴 为什么 dev **不再自动部署**：开发环境跑在**开发机**上（服务器只跑生产）。
+#    GitHub Runner 在云上，到不了你的机器，所以"部署开发环境"这个动作只能由你本机的一条命令完成：
+#        pwsh tools\start-dev.ps1
+#    完整链路：AI 推 dev → 这里跑全量测试 + 构建 :dev 镜像 → 你在本机执行上面那行 → 需求方在
+#    http://localhost:8092 看效果 → 确认后人工把 dev 合到 main → 生产更新。
 #
-# 复用生产的 Secrets（ALIYUN_* / REGISTRY_*）—— 开发环境不需要额外密钥：
-# JWT 与数据库密码由服务器上的部署脚本自己生成，**刻意不与生产共用**。
+# 之前把开发环境放在服务器上（:8092）时，它和 QiaoMES 抢同一台 2vCPU/896MB 机器，
+# 叠加镜像拉取与清理会把磁盘 I/O 拖死、生产一起不可达 —— 那次事故的结论就是"这台机器给不了第二套环境"。
+#
+# 说明见 docs/BRANCHING.md。
 # ============================================================
 
 on:
   push:
     branches: [dev]
-    # 这里**故意不做 paths-ignore**（生产那份有：文档改动不值得发一次生产）。
-    # 开发环境的部署很便宜、也没有对外承诺，少一层过滤就少一类「改了代码却什么都没发生」的困惑
-    # —— 尤其是刚建 dev 分支那阵：路径过滤会把差异算成"整棵树全新增"，很容易让人误判成流水线没跑。
+    # 故意不做 paths-ignore（生产那份有）：开发环境这条链路只是测试 + 构建镜像，便宜；
+    # 而且新建分支时路径过滤会把差异算成"整棵树全新增"，容易让人误判成"流水线没跑"。
   workflow_dispatch:
 
-# 开发环境可以被打断（生产是 cancel-in-progress: false，绝不允许掐断进行中的发布）
+# 候选版本可以被打断（生产是 cancel-in-progress: false，绝不允许掐断进行中的发布）
 concurrency:
   group: qiaomes-dev
   cancel-in-progress: true
@@ -75,7 +76,7 @@ jobs:
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_PASSWORD }}
 
-      # :dev 是开发环境的常驻标签（服务器 .env 就指向它）；git SHA 标签留着排错/回滚
+      # :dev 是开发环境的常驻标签（本机 .env.dev 指向它）；git SHA 标签留着排错/回滚
       - name: 构建并推送 API 镜像（:dev）
         uses: docker/build-push-action@v6
         with:
@@ -100,40 +101,18 @@ jobs:
           cache-from: type=gha,scope=qiaomes-web
           cache-to: type=gha,mode=max,scope=qiaomes-web
 
-  # ---------- 3. 部署到开发环境（与生产同一台服务器，独立栈）----------
-  deploy:
-    name: 部署到开发环境
-    needs: publish
-    runs-on: ubuntu-latest
-    timeout-minutes: 35
-
-    steps:
-      - name: 检出代码
-        uses: actions/checkout@v5
-
-      - name: 安装 Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: 安装阿里云 SDK
-        run: pip install --quiet aliyun-python-sdk-core
-
-      - name: 通过云助手 RunCommand 部署开发环境
-        env:
-          ALIYUN_AK: ${{ secrets.ALIYUN_AK }}
-          ALIYUN_SK: ${{ secrets.ALIYUN_SK }}
-          ALIYUN_INSTANCE_ID: ${{ secrets.ALIYUN_INSTANCE_ID }}
-          ALIYUN_REGION: cn-shanghai
-
-          REGISTRY: ${{ env.REGISTRY }}
-          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
-          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
-
-          QIAOMES_API_IMAGE: ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/qiaomes-api:dev
-          QIAOMES_WEB_IMAGE: ${{ env.REGISTRY }}/${{ env.REGISTRY_NAMESPACE }}/qiaomes-web:dev
-
-          DEV_WEB_PORT: ${{ vars.DEV_WEB_PORT || '8092' }}
-          CORS_ORIGINS: ${{ vars.DEV_CORS_ORIGINS || 'http://139.196.195.44:8092' }}
-          DEMO_DATA_ENABLED: 'true'
-        run: python deploy/gh_deploy_dev.py
+      - name: 告诉你怎么把这一版跑起来（开发环境在你自己机器上）
+        run: |
+          {
+            echo "### ✅ 本次提交的 :dev 镜像已推送"
+            echo ""
+            echo "开发环境跑在**开发机**上（服务器只跑生产），GitHub Runner 到不了你的机器，所以这里不做部署。"
+            echo ""
+            echo "在你机器上执行一行，就能把开发环境更新到这一版："
+            echo ""
+            echo '```powershell'
+            echo 'pwsh tools\start-dev.ps1'
+            echo '```'
+            echo ""
+            echo "跑完打开 http://localhost:8092 。"
+          } >> "$GITHUB_STEP_SUMMARY"

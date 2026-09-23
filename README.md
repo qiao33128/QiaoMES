@@ -224,9 +224,11 @@ pwsh tools/windows-auto-update.ps1 -UnregisterTask
 
 ### 四种方式
 
-> 🌿 **分支 = 环境**：`dev` → 开发环境（`http://139.196.195.44:8092`）；`main` → 生产。
-> AI 自迭代改完代码**只推 `dev`**（代码里有拒绝推 `main` 的闸门），需求方在开发环境看效果确认后，
-> 再人工把 `dev` 同步到 `main` 才动生产。完整流程见 [docs/BRANCHING.md](docs/BRANCHING.md)。
+> 🌿 **分支 = 环境**：`dev` → 开发环境（**你自己的机器**，`http://localhost:8092`，`pwsh tools\start-dev.ps1` 一行起）；
+> `main` → 生产。AI 自迭代改完代码**只推 `dev`**（代码里有拒绝推 `main` 的闸门），
+> 需求方在开发环境看效果确认后，再人工把 `dev` 同步到 `main` 才动生产。
+> （开发环境刻意不放服务器：那台 2vCPU/896MB 的机器给不了第二套环境。）
+> 完整流程见 [docs/BRANCHING.md](docs/BRANCHING.md)。
 
 
 ```bash

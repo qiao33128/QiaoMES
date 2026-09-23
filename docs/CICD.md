@@ -208,11 +208,16 @@ docker compose -f docker-compose.deploy.yml up -d --force-recreate api web
 
 | 分支 | 环境 | 地址 | 工作流 | 编排 | 谁推 |
 |---|---|---|---|---|---|
-| `dev` | 开发环境（候选版本） | `http://139.196.195.44:8092` | `deploy-dev.yml` | `docker-compose.dev.yml`（独立库 / 独立网络 / 独立 JWT 密钥，三个服务都有内存硬限制） | **AI 自迭代自动推**（`Scheduler:MergeTargetBranch=dev`） |
+| `dev` | 开发环境（候选版本） | **你的开发机** `http://localhost:8092` | `deploy-dev.yml` | `docker-compose.dev.yml`（独立库 / 独立网络 / 独立密钥） | **AI 自迭代自动推**（`Scheduler:MergeTargetBranch=dev`）；CI **只测试 + 构建 `:dev` 镜像**，不部署 |
 | `main` | 生产 | `https://mes.qiaoqiaoqiao.me`（:8090） | `deploy.yml` | `docker-compose.deploy.yml` | **只由人工合入**（`git merge --ff-only origin/dev`） |
 
-两条链路都复用 `ci.yml` 的测试，差别只在部署目录、编排文件、镜像 tag（`:dev` vs git SHA）与端口。
-开发环境的 JWT / 数据库密码由部署脚本在服务器上生成，**刻意不与生产共用**（共用 JWT 等于开发环境签发的令牌在生产有效）。
+两条链路都复用 `ci.yml` 的测试，差别只在编排文件、镜像 tag（`:dev` vs git SHA）与**有没有部署动作**。
+
+🔴 **为什么 dev 不再自动部署**：开发环境跑在开发机上，GitHub Runner 在云上、到不了你的机器。
+所以流程是：CI 把 `:dev` 镜像推好 → 你在本机执行 **`pwsh tools/start-dev.ps1`** → 开发环境更新到这一版。
+（此前 dev 也曾部署到服务器同一台机器上，2026-09-23 因磁盘 I/O 被拖死导致生产短暂不可达，已迁回本机 —— 见 [BRANCHING.md](BRANCHING.md)。）
+
+开发环境的 JWT 与数据库密码由 `start-dev.ps1` **在本机生成**，**刻意不与生产共用**（共用 JWT 等于开发环境签发的令牌在生产有效）。
 
 **AI 只推 `dev`**，并且 AI迭代 代码里有一道拒绝 `main` / `master` 的闸门。
 完整流程（谁在什么时候放行、怎么同步到生产、出问题怎么回滚）见 **[BRANCHING.md](BRANCHING.md)**。

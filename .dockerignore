@@ -42,6 +42,7 @@ LICENSE
 docker-compose*.yml
 .env
 .env.local
+.env.dev
 .env.example
 backup/
 
