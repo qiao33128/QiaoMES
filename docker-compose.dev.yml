@@ -70,6 +70,10 @@ services:
       DemoData__Enabled: ${DEMO_DATA_ENABLED:-true}
       Iteration__BaseUrl: ${ITERATION_BASE_URL:-}
       Iteration__AdminKey: ${ITERATION_ADMIN_KEY:-}
+      # 开发环境**刻意不接**自迭代服务（见文件头第 4 条），所以给它一句自己的说明：
+      # 否则页面那句统一的「请在配置里填上地址」会被当成故障、或被照着填 —— 而填了就会连到
+      # **真实的**建议与计划数据，在开发站点上点一下「批准」就真的动到自迭代流程了。
+      Iteration__UnconfiguredHint: "（注：本环境是开发环境，刻意不接自迭代服务 —— 它跑的是 AI 改完、还没人看过的代码，接上去可能在开发站点上批准/否决真实的迭代计划。要看改进建议与迭代计划，请用生产站点。）"
     expose:
       - "8080"
     networks:

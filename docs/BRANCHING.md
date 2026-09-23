@@ -66,7 +66,7 @@ git push origin main                  # → 触发生产部署（测试 → 构�
 | 现象 | 原因 / 处理 |
 |---|---|
 | 开发环境 502 / 打不开 | `docker ps --filter name=qiaomes-dev-` 看容器是否在；`docker logs qiaomes-dev-api`。它可能被内存限制 OOM 掉（`docker inspect qiaomes-dev-api --format '{{.State.OOMKilled}}'`）；不用时 `docker compose -p qiaomes-dev stop` 腾内存 |
-| 开发环境「改进建议」显示「迭代服务还没配置」 | **正常**：开发环境和自迭代服务不在同一个 docker 网络（刻意隔离）。要连通见 `docker-compose.dev.yml` 里 `Iteration__BaseUrl` 的注释 |
+| 开发环境「改进建议」显示「迭代服务还没配置」 | **正常**：开发环境**刻意**不接自迭代服务（数据隔离 —— 免得有人在开发站点上批准/否决**真实**的迭代计划）。页面提示后面会跟一句本环境的说明（配置键 `Iteration:UnconfiguredHint`，只在开发环境那份编排里设）；生产站点上同样的提示**不会**出现。真要连通：给 `docker-compose.dev.yml` 的 api 加 `Iteration__BaseUrl`（并注意那份地址指向的是真实数据） |
 | AI 推 `dev` 报 non-fast-forward | 工作区的 `defaultBranch` 还是 `main`（见第 3 节），或 `dev` 被人工改过。先把它改成 `dev` 再重跑任务 |
 | AI 报「拒绝自动合并到生产分支 main」 | 闸门生效了：`MergeTargetBranch` / `ITERATION_MERGE_TARGET` 被设成了 `main`，改回 `dev` |
 | 开发环境的登录/密码与生产不同 | 应该是不同的 —— 两个环境刻意用不同 JWT 密钥。开发环境的初始账号由库初始化逻辑创建，与生产一致 |

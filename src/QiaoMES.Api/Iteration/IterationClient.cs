@@ -29,7 +29,11 @@ public sealed record ReviewRequest(bool? Approve, bool? Reject, string? Note, st
 /// 只做**转发 + 密钥代持**，不解释服务的内部结构（前端拿到的就是服务返回的原始结构）——
 /// 这样迭代服务演进（加字段、加状态）时宿主不用跟着改。
 /// </summary>
-public sealed class IterationClient(HttpClient http, IterationSettingsFile settings, ILogger<IterationClient> logger)
+public sealed class IterationClient(
+    HttpClient http,
+    IterationSettingsFile settings,
+    IterationOptions options,
+    ILogger<IterationClient> logger)
 {
     public bool IsConfigured => settings.Read().IsConfigured;
 
@@ -114,8 +118,15 @@ public sealed class IterationClient(HttpClient http, IterationSettingsFile setti
 
         if (!current.IsConfigured)
         {
+            // 生产环境这里就是一句"还没配置"；开发环境会在自己的配置里补一句说明 ——
+            // 它**刻意**不接自迭代服务（数据隔离），照着这句提示去填地址反而有害。
+            var hint = string.IsNullOrWhiteSpace(options.UnconfiguredHint)
+                ? string.Empty
+                : $"{Environment.NewLine}{options.UnconfiguredHint}";
+
             return IterationResult.Failure(
-                "迭代服务还没配置：请在「改进建议 → 迭代服务配置」里填上地址并保存（也可以走部署配置 Iteration:BaseUrl / Iteration:AdminKey）。");
+                "迭代服务还没配置：请在「改进建议 → 迭代服务配置」里填上地址并保存（也可以走部署配置 Iteration:BaseUrl / Iteration:AdminKey）。"
+                + hint);
         }
 
         using var request = new HttpRequestMessage(method, Resolve(current.BaseUrl, path));
