@@ -88,6 +88,20 @@ if [ -s "$NEW" ]; then
   while IFS= read -r line; do
     case "$line" in ""|\#*) continue;; esac
     key="${line%%=*}"
+
+    # 🔴 拒收「公开的占位密钥」：仓库 Secrets 里的 JWT_SECRET_KEY 如果存的还是内置占位串，
+    # 那么每次部署都会把它写回 .env 一次 —— 而下面的自愈又会把 .env 里的它换掉 →
+    # 结果就是"每部署一次换一次密钥、所有人反复被踢下线"。所以占位值一律不写入，
+    # 保留服务器上的现值（头一次由自愈生成随机串，之后就稳定了）。
+    if [ "$key" = "JWT_SECRET_KEY" ]; then
+      case "$line" in
+        *QiaoMES_*|*Change_Me*)
+          echo "⚠️  CI 提供的 JWT_SECRET_KEY 是内置占位值 —— 已忽略，保留服务器现值。"
+          echo "   建议把仓库 Secrets 里的 JWT_SECRET_KEY 换成 ≥32 字符的随机串（或删掉，交给部署脚本自愈）。"
+          continue;;
+      esac
+    fi
+
     tmp="$(mktemp)"
     grep -v "^${key}=" "$ENVF" > "$tmp" || true
     mv "$tmp" "$ENVF"
