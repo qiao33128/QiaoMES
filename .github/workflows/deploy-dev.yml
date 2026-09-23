@@ -18,11 +18,9 @@ name: Deploy (dev 开发环境)
 on:
   push:
     branches: [dev]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - 'tools/**'
-      - '.gitignore'
+    # 这里**故意不做 paths-ignore**（生产那份有：文档改动不值得发一次生产）。
+    # 开发环境的部署很便宜、也没有对外承诺，少一层过滤就少一类「改了代码却什么都没发生」的困惑
+    # —— 尤其是刚建 dev 分支那阵：路径过滤会把差异算成"整棵树全新增"，很容易让人误判成流水线没跑。
   workflow_dispatch:
 
 # 开发环境可以被打断（生产是 cancel-in-progress: false，绝不允许掐断进行中的发布）
